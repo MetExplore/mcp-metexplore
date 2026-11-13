@@ -149,7 +149,7 @@ header and should not buffer responses. Example (nginx):
 
 ```nginx
 location /mcp {
-    proxy_pass http://127.0.0.1:3000;
+    proxy_pass http://127.0.0.1:8077;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -160,7 +160,7 @@ location /mcp {
 ```
 
 Apache equivalent: `ProxyPreserveHost On`,
-`ProxyPass /mcp http://127.0.0.1:3000/mcp flushpackets=on timeout=3600`.
+`ProxyPass /mcp http://127.0.0.1:8077/mcp flushpackets=on timeout=3600`.
 
 ### Continuous deployment (GitLab CI)
 
@@ -217,7 +217,7 @@ for one environment).
 | `METEXPLORE_API_URL` | MetExplore API used by this environment |
 | `METEXPLORE_APP_KEY` | Masked + protected |
 | `MCP_ALLOWED_HOSTS` | Public hostname of this environment |
-| `HOST_PORT` | Optional (default `3000`), bound to `127.0.0.1` on the VM |
+| `HOST_PORT` | Optional (default `8077`), bound to `127.0.0.1` on the VM |
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION`, `METEXPLORE_TLS_REJECT_UNAUTHORIZED`, `MCP_RATE_LIMIT_PER_MINUTE`, `MCP_MAX_SESSIONS`, `MCP_SESSION_TTL_MINUTES` | Optional |
 
 Protected variables are only exposed on protected branches/tags: protect
