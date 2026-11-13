@@ -32,7 +32,7 @@ workflow:
 
 variables:
   DOCKER_BUILDKIT: "1"
-  HOST_PORT: "8077"
+  HOST_PORT: "8078"
 
 .on_develop: &on_develop
   if: $CI_COMMIT_BRANCH == "develop"
