@@ -8,7 +8,7 @@
 # Docker daemon through its socket, which must be mounted in the runner's config.toml:
 #   [runners.docker]
 #     volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
-# Deploy jobs only need ssh (alpine + openssh-client). The VMs need docker + compose plugin.
+# Deploy/stop jobs only need ssh (alpine + openssh-client). The VMs only need docker.
 # Variables to define in Settings > CI/CD > Variables are documented in README.md
 # ("Continuous deployment").
 
@@ -32,7 +32,6 @@ workflow:
 
 variables:
   DOCKER_BUILDKIT: "1"
-  DEPLOY_DIR: /opt/mcp-metexplore
   HOST_PORT: "3000"
 
 .on_develop: &on_develop
@@ -91,80 +90,123 @@ build:release:
     - *on_release
 
 # ---------------------------------------------------------------------------
-# Deployment over SSH.
+# Deployment over SSH, without any file on the VM: the remote script is sent on
+# ssh's stdin and the runtime configuration reaches `docker run` through
+# `--env-file /dev/stdin`. Each environment (develop / production) can be stopped
+# (stop:* job, "Stop" button in Operate > Environments) and redeployed
+# ("Re-deploy" button, or re-run the deploy job).
 # Group-level variables (shared with other projects, no environment scope):
 #   SSH_USER                       SSH user on the VMs (must be allowed to run docker)
 #   SSH_PRIVATE_KEY                private key for SSH_USER (File or Variable type)
-#   SSH_HOST_TEST_SERVER           develop VM    -> DEPLOY_HOST of deploy:develop
-#   SSH_HOST_PROD_SERVER           production VM -> DEPLOY_HOST of deploy:production
+#   SSH_HOST_TEST_SERVER           develop VM    -> DEPLOY_HOST of the develop jobs
+#   SSH_HOST_PROD_SERVER           production VM -> DEPLOY_HOST of the production jobs
 #   SSH_KNOWN_HOSTS                `ssh-keyscan` output of both VMs (group or project level)
 # Project-level variables, scoped to the "develop" / "production" environments:
-#   DEPLOY_DIR, HOST_PORT          optional (defaults above)
+#   HOST_PORT                      optional (default above)
 #   METEXPLORE_API_URL, METEXPLORE_APP_KEY (masked), MCP_ALLOWED_HOSTS
 #   optional: METEXPLORE_MAX_REQUESTS_PER_SESSION, METEXPLORE_TLS_REJECT_UNAUTHORIZED,
 #             MCP_RATE_LIMIT_PER_MINUTE, MCP_MAX_SESSIONS, MCP_SESSION_TTL_MINUTES
-.deploy:
+.ssh:
   stage: deploy
   image: alpine:3.20
   variables:
-    GIT_DEPTH: "1"
+    CONTAINER_NAME: mcp-metexplore
   before_script:
     - apk add --no-cache openssh-client
-  script:
     - |
       set -eu
       : "${DEPLOY_HOST:?DEPLOY_HOST is not set for environment $CI_ENVIRONMENT_NAME}"
       : "${SSH_USER:?SSH_USER is not set for environment $CI_ENVIRONMENT_NAME}"
       : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY is not set for environment $CI_ENVIRONMENT_NAME}"
       : "${SSH_KNOWN_HOSTS:?SSH_KNOWN_HOSTS is not set for environment $CI_ENVIRONMENT_NAME}"
+      SSH_DIR="$(mktemp -d)"
+      # SSH_PRIVATE_KEY / SSH_KNOWN_HOSTS may be File variables (path) or plain Variables (content).
+      if [ -f "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" "$SSH_DIR/id"; else printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_DIR/id"; fi
+      chmod 600 "$SSH_DIR/id"
+      if [ -f "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" "$SSH_DIR/known_hosts"; else printf '%s\n' "$SSH_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"; fi
+      export SSH_OPTS="-i $SSH_DIR/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$SSH_DIR/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
+      export TARGET="$SSH_USER@$DEPLOY_HOST"
+
+.deploy:
+  extends: .ssh
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      set -eu
       : "${METEXPLORE_APP_KEY:?METEXPLORE_APP_KEY is not set for environment $CI_ENVIRONMENT_NAME}"
       : "${METEXPLORE_API_URL:?METEXPLORE_API_URL is not set for environment $CI_ENVIRONMENT_NAME}"
 
-      WORK="$(mktemp -d)"
-      trap 'rm -rf "$WORK"' EXIT
-      # SSH_PRIVATE_KEY may be a File variable (path) or a plain Variable (key content).
-      if [ -f "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" "$WORK/id"; else printf '%s\n' "$SSH_PRIVATE_KEY" > "$WORK/id"; fi
-      chmod 600 "$WORK/id"
-      # Same for SSH_KNOWN_HOSTS (File variable at group level).
-      if [ -f "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" "$WORK/known_hosts"; else printf '%s\n' "$SSH_KNOWN_HOSTS" > "$WORK/known_hosts"; fi
-      SSH_OPTS="-i $WORK/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$WORK/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
-      TARGET="$SSH_USER@$DEPLOY_HOST"
-      IMAGE="$CI_REGISTRY_IMAGE:$IMAGE_TAG"
+      # Container runtime configuration, generated from the environment's CI variables.
+      APP_ENV="METEXPLORE_API_URL=$METEXPLORE_API_URL
+      METEXPLORE_APP_KEY=$METEXPLORE_APP_KEY"
+      for v in MCP_ALLOWED_HOSTS METEXPLORE_MAX_REQUESTS_PER_SESSION METEXPLORE_TLS_REJECT_UNAUTHORIZED \
+               MCP_RATE_LIMIT_PER_MINUTE MCP_MAX_SESSIONS MCP_SESSION_TTL_MINUTES; do
+        eval "val=\${$v:-}"
+        if [ -n "$val" ]; then APP_ENV="$APP_ENV
+      $v=$val"; fi
+      done
 
-      # Runtime configuration of the container, generated from the environment's CI variables.
-      umask 077
+      # Values are passed as single-quoted shell assignments at the top of the remote
+      # script (never on a command line, so not visible in `ps` on the VM).
+      q() { printf "%s='%s'\n" "$1" "$(printf '%s' "$2" | sed "s/'/'\\\\''/g")"; }
       {
-        echo "METEXPLORE_API_URL=$METEXPLORE_API_URL"
-        echo "METEXPLORE_APP_KEY=$METEXPLORE_APP_KEY"
-        for v in MCP_ALLOWED_HOSTS METEXPLORE_MAX_REQUESTS_PER_SESSION METEXPLORE_TLS_REJECT_UNAUTHORIZED \
-                 MCP_RATE_LIMIT_PER_MINUTE MCP_MAX_SESSIONS MCP_SESSION_TTL_MINUTES; do
-          eval "val=\${$v:-}"
-          if [ -n "$val" ]; then echo "$v=$val"; fi
-        done
-      } > "$WORK/.env"
-      printf 'IMAGE=%s\nHOST_PORT=%s\n' "$IMAGE" "$HOST_PORT" > "$WORK/compose.env"
-
-      ssh $SSH_OPTS "$TARGET" "mkdir -p '$DEPLOY_DIR'"
-      scp $SSH_OPTS deploy/docker-compose.yml "$TARGET:$DEPLOY_DIR/docker-compose.yml"
-      scp $SSH_OPTS "$WORK/.env" "$TARGET:$DEPLOY_DIR/.env"
-      scp $SSH_OPTS "$WORK/compose.env" "$TARGET:$DEPLOY_DIR/compose.env"
-
-      echo "$CI_REGISTRY_PASSWORD" | ssh $SSH_OPTS "$TARGET" \
-        "docker login -u '$CI_REGISTRY_USER' --password-stdin '$CI_REGISTRY'"
-      ssh $SSH_OPTS "$TARGET" "set -e
-        cd '$DEPLOY_DIR'
-        chmod 600 .env
-        trap 'docker logout \"$CI_REGISTRY\" >/dev/null 2>&1 || true' EXIT
-        docker compose --env-file compose.env pull
-        docker compose --env-file compose.env up -d --remove-orphans
+        q IMAGE "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
+        q NAME "$CONTAINER_NAME"
+        q HOST_PORT "$HOST_PORT"
+        q REGISTRY "$CI_REGISTRY"
+        q REGISTRY_USER "$CI_REGISTRY_USER"
+        q REGISTRY_PASSWORD "$CI_REGISTRY_PASSWORD"
+        q APP_ENV "$APP_ENV"
+        q REVISION "$CI_COMMIT_SHA"
+        q SOURCE "$CI_PROJECT_URL"
+        # Wrapped in a function so the shell parses the whole script before running it
+        # (no command can read the rest of the script from stdin).
+        cat <<'REMOTE'
+      main() {
+        set -eu
+        printf '%s' "$REGISTRY_PASSWORD" | docker login -u "$REGISTRY_USER" --password-stdin "$REGISTRY" >/dev/null
+        trap 'docker logout "$REGISTRY" >/dev/null 2>&1 || true' EXIT
+        docker pull "$IMAGE"
+        docker rm -f "$NAME" >/dev/null 2>&1 || true
+        printf '%s\n' "$APP_ENV" | docker run -d --name "$NAME" \
+          --restart unless-stopped \
+          --env-file /dev/stdin \
+          -e MCP_TRANSPORT=http -e MCP_HTTP_HOST=0.0.0.0 -e MCP_HTTP_PORT=3000 \
+          -e MCP_TRUST_PROXY=true \
+          -p "127.0.0.1:$HOST_PORT:3000" \
+          --log-driver json-file --log-opt max-size=10m --log-opt max-file=3 \
+          --label "org.opencontainers.image.revision=$REVISION" \
+          --label "org.opencontainers.image.source=$SOURCE" \
+          "$IMAGE" >/dev/null
         echo 'Waiting for the container to become healthy...'
-        for i in \$(seq 1 30); do
-          status=\$(docker inspect -f '{{.State.Health.Status}}' mcp-metexplore 2>/dev/null || echo missing)
-          if [ \"\$status\" = healthy ]; then echo 'mcp-metexplore is healthy'; break; fi
-          if [ \$i -eq 30 ]; then echo \"Container not healthy (status: \$status)\"; docker compose --env-file compose.env logs --tail 50; exit 1; fi
+        i=0
+        while :; do
+          status=$(docker inspect -f '{{.State.Health.Status}}' "$NAME" 2>/dev/null || echo missing)
+          if [ "$status" = healthy ]; then echo "$NAME is healthy ($IMAGE)"; break; fi
+          i=$((i + 1))
+          if [ "$i" -ge 30 ]; then
+            echo "Container not healthy (status: $status)"
+            docker logs --tail 50 "$NAME" || true
+            exit 1
+          fi
           sleep 2
         done
-        docker image prune -f >/dev/null"
+        docker image prune -f >/dev/null
+      }
+      main
+      REMOTE
+      } | ssh $SSH_OPTS "$TARGET" sh -s
+
+.stop:
+  extends: .ssh
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - ssh $SSH_OPTS "$TARGET" "docker rm -f '$CONTAINER_NAME' || true"
+  environment:
+    action: stop
+  allow_failure: true
 
 deploy:develop:
   extends: .deploy
@@ -174,9 +216,22 @@ deploy:develop:
     DEPLOY_HOST: $SSH_HOST_TEST_SERVER
   environment:
     name: develop
+    on_stop: stop:develop
   resource_group: deploy-develop
   rules:
     - *on_develop
+
+stop:develop:
+  extends: .stop
+  needs: [deploy:develop]
+  variables:
+    DEPLOY_HOST: $SSH_HOST_TEST_SERVER
+  environment:
+    name: develop
+  resource_group: deploy-develop
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+      when: manual
 
 deploy:production:
   extends: .deploy
@@ -186,6 +241,19 @@ deploy:production:
     DEPLOY_HOST: $SSH_HOST_PROD_SERVER
   environment:
     name: production
+    on_stop: stop:production
   resource_group: deploy-production
   rules:
     - *on_release
+
+stop:production:
+  extends: .stop
+  needs: [deploy:production]
+  variables:
+    DEPLOY_HOST: $SSH_HOST_PROD_SERVER
+  environment:
+    name: production
+  resource_group: deploy-production
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+      when: manual

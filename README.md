@@ -109,7 +109,7 @@ transport on `/mcp`, plus `GET /health` (used by the Docker healthcheck).
 |---|---|---|
 | `MCP_HTTP_HOST` / `MCP_HTTP_PORT` | `127.0.0.1` / `3000` | Listening address (`0.0.0.0` in the Docker image) |
 | `MCP_ALLOWED_HOSTS` | empty (no check) | Comma-separated public hostnames accepted in the `Host` header (DNS rebinding protection) |
-| `MCP_TRUST_PROXY` | `false` | `true` behind a reverse proxy: client IP taken from `X-Forwarded-For` (set by the compose file) |
+| `MCP_TRUST_PROXY` | `false` | `true` behind a reverse proxy: client IP taken from `X-Forwarded-For` (set by the CI deployment) |
 | `MCP_RATE_LIMIT_PER_MINUTE` | `60` | Max HTTP requests per client IP per minute on `/mcp` |
 | `MCP_MAX_SESSIONS` | `200` | Max concurrent MCP sessions (503 beyond) |
 | `MCP_SESSION_TTL_MINUTES` | `30` | Idle sessions are closed after this delay |
@@ -142,7 +142,7 @@ docker run --rm -p 127.0.0.1:3000:3000 \
 curl http://localhost:3000/health
 ```
 
-`deploy/docker-compose.yml` is the file used on the servers: the container is
+On the servers (see "Continuous deployment"), the container is
 only bound to `127.0.0.1:${HOST_PORT}`; TLS and the public domain name are
 handled by the host's reverse proxy, which must keep the original `Host`
 header and should not buffer responses. Example (nginx):
@@ -182,9 +182,18 @@ to the VMs.
 | push on `develop` | `build:develop`, `deploy:develop` | `:develop-<sha>`, `:develop` | environment `develop` |
 | tag `vX.Y.Z` | `build:release`, `deploy:production` | `:vX.Y.Z`, `:latest` | environment `production` |
 
-Deployment copies `deploy/docker-compose.yml` and a generated `.env` to
-`$DEPLOY_DIR` on the VM over SSH, then runs `docker compose pull && up -d`
-and waits for the container to be healthy.
+Deployment writes no file on the VM: the job pipes a script to `ssh … sh -s`
+that pulls the image, replaces the `mcp-metexplore` container with
+`docker run` (runtime configuration passed through `--env-file /dev/stdin`)
+and waits for the container to be healthy. The VMs only need Docker.
+
+Each environment can be managed from **Operate > Environments**:
+
+- **Stop**: runs the manual `stop:develop` / `stop:production` job, which
+  removes the container (`docker rm -f mcp-metexplore`).
+- **Re-deploy**: re-runs the deploy job of the last deployment (same image tag),
+  which restarts the service after a stop. A rollback is a re-deploy of an older
+  deployment.
 
 CI/CD variables. The SSH credentials are shared with other projects and
 defined at the **group** level, without environment scope:
@@ -208,7 +217,7 @@ for one environment).
 | `METEXPLORE_API_URL` | MetExplore API used by this environment |
 | `METEXPLORE_APP_KEY` | Masked + protected |
 | `MCP_ALLOWED_HOSTS` | Public hostname of this environment |
-| `DEPLOY_DIR`, `HOST_PORT` | Optional (default `/opt/mcp-metexplore`, `3000`) |
+| `HOST_PORT` | Optional (default `3000`), bound to `127.0.0.1` on the VM |
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION`, `METEXPLORE_TLS_REJECT_UNAUTHORIZED`, `MCP_RATE_LIMIT_PER_MINUTE`, `MCP_MAX_SESSIONS`, `MCP_SESSION_TTL_MINUTES` | Optional |
 
 Protected variables are only exposed on protected branches/tags: protect
