@@ -69,7 +69,7 @@ Environment variables can also be passed directly in this configuration block
 - "In how many reactions is glucose involved in humans?"
   → `search_organisms("Homo sapiens")`, then `search_metabolites`, then
   `count_reactions_for_metabolite`.
-- "I have this file of metabolit	e identifiers, map it onto Ralstonia and give
+- "I have this file of metabolite identifiers, map it onto Ralstonia and give
   me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
 - "Export the SBML network for Arabidopsis." → `search_organisms("Arabidopsis")`
   then `export_network_sbml`.

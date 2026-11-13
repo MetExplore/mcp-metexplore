@@ -13,6 +13,7 @@ export interface Network {
   version?: string;
   description?: string;
   db_identifier?: string;
+  identifier_origin?: string;
   permission?: string;
   nb_pathways?: number;
   nb_reactions?: number;
