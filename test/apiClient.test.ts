@@ -1,0 +1,130 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { MetExploreApiClient } from "../src/apiClient.js";
+import { MetExploreApiError, MetExploreAuthError, MetExploreQuotaError } from "../src/errors.js";
+import type { Config } from "../src/config.js";
+
+function baseConfig(overrides: Partial<Config> = {}): Config {
+  return {
+    apiUrl: "http://localhost:1337",
+    appKey: "app-key",
+    userToken: "user-token",
+    maxRequestsPerSession: 20,
+    exportDir: "./exports",
+    tlsRejectUnauthorized: true,
+    ...overrides,
+  };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+test("stops making requests once the per-session quota is reached", async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    return jsonResponse({ success: true, message: "OK", status: 200, networks: [] });
+  });
+
+  const client = new MetExploreApiClient(baseConfig({ maxRequestsPerSession: 2 }));
+  await client.getNetworks();
+  await client.getNetworks();
+  assert.equal(calls, 2);
+
+  await assert.rejects(() => client.getNetworks(), MetExploreQuotaError);
+  assert.equal(calls, 2, "no HTTP call should be made once the quota is exhausted");
+});
+
+test("maps a 401 'Bad app token' response to a friendly auth error mentioning the .env variable", async (t) => {
+  t.mock.method(globalThis, "fetch", async () =>
+    jsonResponse({ success: false, message: "Bad app token", status: 401 }, 401),
+  );
+
+  const client = new MetExploreApiClient(baseConfig());
+  await assert.rejects(
+    () => client.getNetworks(),
+    (err: unknown) => {
+      assert.ok(err instanceof MetExploreAuthError);
+      assert.match((err as Error).message, /METEXPLORE_APP_KEY/);
+      return true;
+    },
+  );
+});
+
+test("maps a 401 'token not valid' response to a friendly user-token auth error", async (t) => {
+  t.mock.method(globalThis, "fetch", async () =>
+    jsonResponse({ success: false, message: "token not valid", status: 401 }, 401),
+  );
+
+  const client = new MetExploreApiClient(baseConfig());
+  await assert.rejects(
+    () => client.getNetworks(),
+    (err: unknown) => {
+      assert.ok(err instanceof MetExploreAuthError);
+      assert.match((err as Error).message, /METEXPLORE_USER_TOKEN/);
+      return true;
+    },
+  );
+});
+
+test("wraps other API failures in MetExploreApiError with the original status", async (t) => {
+  t.mock.method(globalThis, "fetch", async () =>
+    jsonResponse({ success: false, message: "boom", status: 500 }, 500),
+  );
+
+  const client = new MetExploreApiClient(baseConfig());
+  await assert.rejects(
+    () => client.getNetworks(),
+    (err: unknown) => {
+      assert.ok(err instanceof MetExploreApiError);
+      assert.equal((err as MetExploreApiError).status, 500);
+      return true;
+    },
+  );
+});
+
+test("leaves TLS certificate verification untouched by default", (t) => {
+  const before = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  t.after(() => {
+    if (before === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = before;
+  });
+  delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+
+  new MetExploreApiClient(baseConfig());
+  assert.equal(process.env.NODE_TLS_REJECT_UNAUTHORIZED, undefined);
+});
+
+test("disables TLS certificate verification when tlsRejectUnauthorized is false", (t) => {
+  const before = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  t.after(() => {
+    if (before === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = before;
+  });
+  t.mock.method(console, "error", () => {});
+
+  new MetExploreApiClient(baseConfig({ tlsRejectUnauthorized: false }));
+  assert.equal(process.env.NODE_TLS_REJECT_UNAUTHORIZED, "0");
+});
+
+test("logs in with METEXPLORE_USER_LOGIN/PASSWORD when no user token is configured", async (t) => {
+  const calls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    calls.push(url);
+    if (url.endsWith("/users/login")) {
+      return jsonResponse({ success: true, message: "Login successed.", status: 200, user: { token: "fresh-token" } });
+    }
+    return jsonResponse({ success: true, message: "OK", status: 200, networks: [] });
+  });
+
+  const client = new MetExploreApiClient(
+    baseConfig({ userToken: undefined, userLogin: "bob", userPassword: "secret" }),
+  );
+  await client.getNetworks();
+  assert.equal(calls.length, 2);
+  assert.ok(calls[0].endsWith("/users/login"));
+});
