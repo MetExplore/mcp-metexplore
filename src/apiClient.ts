@@ -1,4 +1,4 @@
-import type { Config } from "./config.js";
+import type { Config, TransportMode } from "./config.js";
 import { MetExploreApiError, MetExploreAuthError, MetExploreQuotaError, toFriendlyAuthMessage } from "./errors.js";
 
 export interface Network {
@@ -76,12 +76,6 @@ export interface FiltersResponse {
   names: string[];
 }
 
-export interface Job {
-  status: "waiting" | "running" | "finished" | "failed";
-  message?: string;
-  result?: { success?: boolean; id_network?: number; download?: string };
-}
-
 interface BaseEnvelope {
   message: string;
   success: boolean;
@@ -92,14 +86,26 @@ interface BaseEnvelope {
  * Central HTTP client for the MetExplore API: builds authentication headers,
  * enforces the per-session request quota, and translates API errors into
  * actionable messages.
+ *
+ * One instance per MCP session: in stdio mode there is a single session for the
+ * process lifetime; in HTTP mode each MCP session gets its own client (own quota,
+ * own user token). Without any user credentials, requests are sent with the app
+ * key only, and the API only exposes public data.
  */
 export class MetExploreApiClient {
+  private static tlsWarningShown = false;
   private requestCount = 0;
   private userToken?: string;
+  private readonly mode: TransportMode;
 
-  constructor(private readonly config: Config) {
+  constructor(
+    private readonly config: Config,
+    opts: { mode?: TransportMode } = {},
+  ) {
     this.userToken = config.userToken;
-    if (!config.tlsRejectUnauthorized) {
+    this.mode = opts.mode ?? "stdio";
+    if (!config.tlsRejectUnauthorized && !MetExploreApiClient.tlsWarningShown) {
+      MetExploreApiClient.tlsWarningShown = true;
       console.error(
         "[mcp-metexplore] WARNING: TLS certificate verification is disabled " +
           "(METEXPLORE_TLS_REJECT_UNAUTHORIZED=false). Only use this against a trusted MetExplore " +
@@ -122,14 +128,18 @@ export class MetExploreApiClient {
     return Math.max(0, this.config.maxRequestsPerSession - this.requestCount);
   }
 
+  /** True when no user credentials are available: only public data is reachable. */
+  get isAnonymous(): boolean {
+    return !this.userToken && !(this.config.userLogin && this.config.userPassword);
+  }
+
+  /**
+   * Obtains a user token via /users/login if login credentials are configured and no token is
+   * known yet. Without any credentials, does nothing: requests are then sent anonymously.
+   */
   private async ensureUserToken(): Promise<void> {
     if (this.userToken) return;
-    if (!this.config.userLogin || !this.config.userPassword) {
-      throw new MetExploreAuthError(
-        "No user token available and no login credentials configured " +
-          "(METEXPLORE_USER_LOGIN/METEXPLORE_USER_PASSWORD).",
-      );
-    }
+    if (!this.config.userLogin || !this.config.userPassword) return;
     const response = await this.request<BaseEnvelope & { user?: { token?: string } }>(
       "POST",
       "/users/login",
@@ -153,7 +163,9 @@ export class MetExploreApiClient {
     if (this.requestCount >= this.config.maxRequestsPerSession) {
       throw new MetExploreQuotaError(
         `Reached the ${this.config.maxRequestsPerSession}-request API quota for this session. ` +
-          "Restart the MCP server to get a fresh quota.",
+          (this.mode === "stdio"
+            ? "Restart the MCP server to get a fresh quota."
+            : "Start a new MCP session (reconnect the client) to get a fresh quota."),
       );
     }
 
@@ -193,7 +205,7 @@ export class MetExploreApiClient {
     const json = (await res.json()) as BaseEnvelope & Record<string, unknown>;
     if (!res.ok || json.success === false) {
       const status = res.status;
-      const friendly = toFriendlyAuthMessage(status, json.message ?? "");
+      const friendly = toFriendlyAuthMessage(status, json.message ?? "", this.mode);
       if (friendly) throw new MetExploreAuthError(friendly);
       if (status === 429) {
         throw new MetExploreApiError("The MetExplore API replied 429 (too many requests). Try again later.", 429);
@@ -235,25 +247,5 @@ export class MetExploreApiClient {
       ids: metaboliteIds,
     });
     return res;
-  }
-
-  async startSbmlExport(idNetwork: number): Promise<string> {
-    await this.ensureUserToken();
-    const res = await this.request<BaseEnvelope & { result: string }>(
-      "GET",
-      `/export/sbml?id_network=${idNetwork}`,
-    );
-    return res.result;
-  }
-
-  async getJob(jobId: string): Promise<Job> {
-    await this.ensureUserToken();
-    const res = await this.request<BaseEnvelope & { job: Job }>("GET", `/jobs?id=${jobId}`);
-    return res.job;
-  }
-
-  async downloadJobFile(jobId: string): Promise<string> {
-    await this.ensureUserToken();
-    return this.request<string>("GET", `/jobs?id=${jobId}&file=true`);
   }
 }

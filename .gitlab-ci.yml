@@ -1,0 +1,190 @@
+# CI/CD for mcp-metexplore
+#
+#   - any branch / merge request : unit tests (in Docker)
+#   - push on develop            : build image -> registry -> deploy on the "develop" VM
+#   - tag vX.Y.Z                 : build image -> registry -> deploy on the "production" VM
+#
+# Runner: tag vm-metexplore-dev, docker executor. The test/build jobs talk to the host's
+# Docker daemon through its socket, which must be mounted in the runner's config.toml:
+#   [runners.docker]
+#     volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+# Deploy jobs only need ssh (alpine + openssh-client). The VMs need docker + compose plugin.
+# Variables to define in Settings > CI/CD > Variables are documented in README.md
+# ("Continuous deployment").
+
+stages:
+  - test
+  - build
+  - deploy
+
+default:
+  tags:
+    - vm-metexplore-dev
+
+workflow:
+  rules:
+    # Avoid duplicate pipelines (branch + merge request) for the same push.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+variables:
+  DOCKER_BUILDKIT: "1"
+  DEPLOY_DIR: /opt/mcp-metexplore
+  HOST_PORT: "3000"
+
+.on_develop: &on_develop
+  if: $CI_COMMIT_BRANCH == "develop"
+
+.on_release: &on_release
+  if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+
+# Jobs running docker commands against the host daemon (mounted socket).
+.docker_cli:
+  image: docker:27-cli
+
+# ---------------------------------------------------------------------------
+test:
+  extends: .docker_cli
+  stage: test
+  script:
+    - docker build --pull --target test -t "mcp-metexplore-test:$CI_COMMIT_SHORT_SHA" .
+  after_script:
+    - docker image rm "mcp-metexplore-test:$CI_COMMIT_SHORT_SHA" || true
+
+# ---------------------------------------------------------------------------
+.build:
+  extends: .docker_cli
+  stage: build
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - docker build --pull --target runtime
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA"
+        --label "org.opencontainers.image.source=$CI_PROJECT_URL"
+        -t "$CI_REGISTRY_IMAGE:$IMAGE_TAG" .
+    - docker push "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
+    - |
+      for alias in $IMAGE_ALIASES; do
+        docker tag "$CI_REGISTRY_IMAGE:$IMAGE_TAG" "$CI_REGISTRY_IMAGE:$alias"
+        docker push "$CI_REGISTRY_IMAGE:$alias"
+      done
+  after_script:
+    - docker logout "$CI_REGISTRY" || true
+
+build:develop:
+  extends: .build
+  variables:
+    IMAGE_TAG: develop-$CI_COMMIT_SHORT_SHA
+    IMAGE_ALIASES: develop
+  rules:
+    - *on_develop
+
+build:release:
+  extends: .build
+  variables:
+    IMAGE_TAG: $CI_COMMIT_TAG
+    IMAGE_ALIASES: latest
+  rules:
+    - *on_release
+
+# ---------------------------------------------------------------------------
+# Deployment over SSH.
+# Group-level variables (shared with other projects, no environment scope):
+#   SSH_USER                       SSH user on the VMs (must be allowed to run docker)
+#   SSH_PRIVATE_KEY                private key for SSH_USER (File or Variable type)
+#   SSH_HOST_TEST_SERVER           develop VM    -> DEPLOY_HOST of deploy:develop
+#   SSH_HOST_PROD_SERVER           production VM -> DEPLOY_HOST of deploy:production
+#   SSH_KNOWN_HOSTS                `ssh-keyscan` output of both VMs (group or project level)
+# Project-level variables, scoped to the "develop" / "production" environments:
+#   DEPLOY_DIR, HOST_PORT          optional (defaults above)
+#   METEXPLORE_API_URL, METEXPLORE_APP_KEY (masked), MCP_ALLOWED_HOSTS
+#   optional: METEXPLORE_MAX_REQUESTS_PER_SESSION, METEXPLORE_TLS_REJECT_UNAUTHORIZED,
+#             MCP_RATE_LIMIT_PER_MINUTE, MCP_MAX_SESSIONS, MCP_SESSION_TTL_MINUTES
+.deploy:
+  stage: deploy
+  image: alpine:3.20
+  variables:
+    GIT_DEPTH: "1"
+  before_script:
+    - apk add --no-cache openssh-client
+  script:
+    - |
+      set -eu
+      : "${DEPLOY_HOST:?DEPLOY_HOST is not set for environment $CI_ENVIRONMENT_NAME}"
+      : "${SSH_USER:?SSH_USER is not set for environment $CI_ENVIRONMENT_NAME}"
+      : "${SSH_PRIVATE_KEY:?SSH_PRIVATE_KEY is not set for environment $CI_ENVIRONMENT_NAME}"
+      : "${SSH_KNOWN_HOSTS:?SSH_KNOWN_HOSTS is not set for environment $CI_ENVIRONMENT_NAME}"
+      : "${METEXPLORE_APP_KEY:?METEXPLORE_APP_KEY is not set for environment $CI_ENVIRONMENT_NAME}"
+      : "${METEXPLORE_API_URL:?METEXPLORE_API_URL is not set for environment $CI_ENVIRONMENT_NAME}"
+
+      WORK="$(mktemp -d)"
+      trap 'rm -rf "$WORK"' EXIT
+      # SSH_PRIVATE_KEY may be a File variable (path) or a plain Variable (key content).
+      if [ -f "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" "$WORK/id"; else printf '%s\n' "$SSH_PRIVATE_KEY" > "$WORK/id"; fi
+      chmod 600 "$WORK/id"
+      printf '%s\n' "$SSH_KNOWN_HOSTS" > "$WORK/known_hosts"
+      SSH_OPTS="-i $WORK/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$WORK/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
+      TARGET="$SSH_USER@$DEPLOY_HOST"
+      IMAGE="$CI_REGISTRY_IMAGE:$IMAGE_TAG"
+
+      # Runtime configuration of the container, generated from the environment's CI variables.
+      umask 077
+      {
+        echo "METEXPLORE_API_URL=$METEXPLORE_API_URL"
+        echo "METEXPLORE_APP_KEY=$METEXPLORE_APP_KEY"
+        for v in MCP_ALLOWED_HOSTS METEXPLORE_MAX_REQUESTS_PER_SESSION METEXPLORE_TLS_REJECT_UNAUTHORIZED \
+                 MCP_RATE_LIMIT_PER_MINUTE MCP_MAX_SESSIONS MCP_SESSION_TTL_MINUTES; do
+          eval "val=\${$v:-}"
+          if [ -n "$val" ]; then echo "$v=$val"; fi
+        done
+      } > "$WORK/.env"
+      printf 'IMAGE=%s\nHOST_PORT=%s\n' "$IMAGE" "$HOST_PORT" > "$WORK/compose.env"
+
+      ssh $SSH_OPTS "$TARGET" "mkdir -p '$DEPLOY_DIR'"
+      scp $SSH_OPTS deploy/docker-compose.yml "$TARGET:$DEPLOY_DIR/docker-compose.yml"
+      scp $SSH_OPTS "$WORK/.env" "$TARGET:$DEPLOY_DIR/.env"
+      scp $SSH_OPTS "$WORK/compose.env" "$TARGET:$DEPLOY_DIR/compose.env"
+
+      echo "$CI_REGISTRY_PASSWORD" | ssh $SSH_OPTS "$TARGET" \
+        "docker login -u '$CI_REGISTRY_USER' --password-stdin '$CI_REGISTRY'"
+      ssh $SSH_OPTS "$TARGET" "set -e
+        cd '$DEPLOY_DIR'
+        chmod 600 .env
+        trap 'docker logout \"$CI_REGISTRY\" >/dev/null 2>&1 || true' EXIT
+        docker compose --env-file compose.env pull
+        docker compose --env-file compose.env up -d --remove-orphans
+        echo 'Waiting for the container to become healthy...'
+        for i in \$(seq 1 30); do
+          status=\$(docker inspect -f '{{.State.Health.Status}}' mcp-metexplore 2>/dev/null || echo missing)
+          if [ \"\$status\" = healthy ]; then echo 'mcp-metexplore is healthy'; break; fi
+          if [ \$i -eq 30 ]; then echo \"Container not healthy (status: \$status)\"; docker compose --env-file compose.env logs --tail 50; exit 1; fi
+          sleep 2
+        done
+        docker image prune -f >/dev/null"
+
+deploy:develop:
+  extends: .deploy
+  needs: [build:develop]
+  variables:
+    IMAGE_TAG: develop-$CI_COMMIT_SHORT_SHA
+    DEPLOY_HOST: $SSH_HOST_TEST_SERVER
+  environment:
+    name: develop
+  resource_group: deploy-develop
+  rules:
+    - *on_develop
+
+deploy:production:
+  extends: .deploy
+  needs: [build:release]
+  variables:
+    IMAGE_TAG: $CI_COMMIT_TAG
+    DEPLOY_HOST: $SSH_HOST_PROD_SERVER
+  environment:
+    name: production
+  resource_group: deploy-production
+  rules:
+    - *on_release

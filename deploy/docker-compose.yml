@@ -1,0 +1,22 @@
+# Deployed by the GitLab CI to $DEPLOY_DIR on each VM, next to a .env generated
+# from the CI/CD variables of the matching environment (develop / production).
+services:
+  mcp-metexplore:
+    image: ${IMAGE:?IMAGE must be set (registry image:tag)}
+    container_name: mcp-metexplore
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MCP_TRANSPORT: http
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: "3000"
+      # The container is only reachable through the host's reverse proxy.
+      MCP_TRUST_PROXY: "true"
+    ports:
+      # Bound to localhost only: the reverse proxy (TLS, public domain) forwards to it.
+      - "127.0.0.1:${HOST_PORT:-3000}:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

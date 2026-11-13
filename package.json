@@ -1,7 +1,7 @@
 {
   "name": "mcp-metexplore",
-  "version": "0.1.0",
-  "description": "MCP server for querying the MetExplore API (organisms, metabolites, mapping, SBML export)",
+  "version": "0.2.0",
+  "description": "MCP server for querying the MetExplore API (organisms, metabolites, reactions, mapping)",
   "type": "module",
   "bin": {
     "mcp-metexplore": "dist/index.js"

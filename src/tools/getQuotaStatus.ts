@@ -8,7 +8,7 @@ export function registerGetQuotaStatus(server: McpServer, ctx: ToolContext) {
       title: "View the remaining API request quota",
       description:
         "Returns how many requests have already been sent to the MetExplore API and how many " +
-        "remain for this session (limit set by METEXPLORE_MAX_REQUESTS_PER_SESSION).",
+        "remain for the current MCP session (limit set by METEXPLORE_MAX_REQUESTS_PER_SESSION).",
       inputSchema: {},
     },
     withErrorHandling(async (_args, { client, config }) => {

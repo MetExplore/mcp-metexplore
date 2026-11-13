@@ -2,7 +2,6 @@ node_modules/
 dist/
 dist-test/
 .env*
-exports/*
-!exports/.gitkeep
+!.env.example
 *.log
 .claude

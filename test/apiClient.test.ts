@@ -10,7 +10,6 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
     appKey: "app-key",
     userToken: "user-token",
     maxRequestsPerSession: 20,
-    exportDir: "./exports",
     tlsRejectUnauthorized: true,
     ...overrides,
   };
@@ -127,4 +126,47 @@ test("logs in with METEXPLORE_USER_LOGIN/PASSWORD when no user token is configur
   await client.getNetworks();
   assert.equal(calls.length, 2);
   assert.ok(calls[0].endsWith("/users/login"));
+});
+
+test("sends no Authorization header and never logs in when no user credentials are configured", async (t) => {
+  const calls: { url: string; headers: Record<string, string> }[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    calls.push({ url, headers: init.headers as Record<string, string> });
+    return jsonResponse({ success: true, message: "OK", status: 200, networks: [] });
+  });
+
+  const client = new MetExploreApiClient(baseConfig({ userToken: undefined }));
+  assert.equal(client.isAnonymous, true);
+  await client.getNetworks();
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.endsWith("/networks"));
+  assert.equal(calls[0].headers["Authorization"], undefined);
+  assert.equal(calls[0].headers["x-app-key"], "app-key");
+});
+
+test("sends the configured user token as a Bearer token", async (t) => {
+  let auth: string | undefined;
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    auth = (init.headers as Record<string, string>)["Authorization"];
+    return jsonResponse({ success: true, message: "OK", status: 200, networks: [] });
+  });
+
+  await new MetExploreApiClient(baseConfig({ userToken: "abc" })).getNetworks();
+  assert.equal(auth, "Bearer abc");
+});
+
+test("in HTTP mode, user-token auth errors point at the X-MetExplore-Token header", async (t) => {
+  t.mock.method(globalThis, "fetch", async () =>
+    jsonResponse({ success: false, message: "token not valid", status: 401 }, 401),
+  );
+
+  const client = new MetExploreApiClient(baseConfig(), { mode: "http" });
+  await assert.rejects(
+    () => client.getNetworks(),
+    (err: unknown) => {
+      assert.ok(err instanceof MetExploreAuthError);
+      assert.match((err as Error).message, /X-MetExplore-Token/);
+      return true;
+    },
+  );
 });
