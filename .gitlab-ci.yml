@@ -125,7 +125,8 @@ build:release:
       # SSH_PRIVATE_KEY may be a File variable (path) or a plain Variable (key content).
       if [ -f "$SSH_PRIVATE_KEY" ]; then cp "$SSH_PRIVATE_KEY" "$WORK/id"; else printf '%s\n' "$SSH_PRIVATE_KEY" > "$WORK/id"; fi
       chmod 600 "$WORK/id"
-      printf '%s\n' "$SSH_KNOWN_HOSTS" > "$WORK/known_hosts"
+      # Same for SSH_KNOWN_HOSTS (File variable at group level).
+      if [ -f "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" "$WORK/known_hosts"; else printf '%s\n' "$SSH_KNOWN_HOSTS" > "$WORK/known_hosts"; fi
       SSH_OPTS="-i $WORK/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$WORK/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
       TARGET="$SSH_USER@$DEPLOY_HOST"
       IMAGE="$CI_REGISTRY_IMAGE:$IMAGE_TAG"
