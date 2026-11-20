@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.0.2
+
+- Fix release ci
+
 ## 0.0.1
 
 -   Features:
