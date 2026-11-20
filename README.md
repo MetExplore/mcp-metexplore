@@ -216,7 +216,7 @@ to the VMs.
 |---|---|---|---|
 | any branch / MR | `test` | — | — |
 | push on `develop` | `build:develop`, `deploy:develop` | `:develop-<sha>`, `:develop` | environment `develop` |
-| tag `vX.Y.Z` | `build:release`, `deploy:production` | `:vX.Y.Z`, `:latest` | environment `production` |
+| tag `X.Y.Z` | `build:release`, `deploy:production` | `:X.Y.Z`, `:latest` | environment `production` |
 
 Deployment writes no file on the VM: the job pipes a script to `ssh … sh -s`
 that pulls the image, replaces the `mcp-metexplore` container with
@@ -257,7 +257,7 @@ for one environment).
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION`, `METEXPLORE_TLS_REJECT_UNAUTHORIZED`, `MCP_RATE_LIMIT_PER_MINUTE`, `MCP_MAX_SESSIONS`, `MCP_SESSION_TTL_MINUTES` | Optional |
 
 Protected variables are only exposed on protected branches/tags: protect
-`develop` and the `v*` tags (Settings > Repository).
+`develop` and the release tags `*.*.*` (Settings > Repository).
 
 ## Development
 
