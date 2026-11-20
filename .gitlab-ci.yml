@@ -2,7 +2,7 @@
 #
 #   - any branch / merge request : unit tests (in Docker)
 #   - push on develop            : build image -> registry -> deploy on the "develop" VM
-#   - tag vX.Y.Z                 : build image -> registry -> deploy on the "production" VM
+#   - tag X.Y.Z                  : build image -> registry -> deploy on the "production" VM
 #
 # Runner: tag vm-metexplore-dev, docker executor. The test/build jobs talk to the host's
 # Docker daemon through its socket, which must be mounted in the runner's config.toml:
@@ -38,7 +38,7 @@ variables:
   if: $CI_COMMIT_BRANCH == "develop"
 
 .on_release: &on_release
-  if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
 
 # Jobs running docker commands against the host daemon (mounted socket).
 .docker_cli:
@@ -255,5 +255,5 @@ stop:production:
     name: production
   resource_group: deploy-production
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
       when: manual
