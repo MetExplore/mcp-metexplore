@@ -15,6 +15,13 @@ It exposes tools to:
 - list every metabolite of a network with a given chemical formula
   (`search_metabolites_by_formula`, optionally ignoring hydrogens to catch all
   protonation states);
+- list every metabolite of a network cross-referenced to an external identifier
+  (`search_metabolites_by_external_id`: ChEBI, KEGG, HMDB, MetaNetX, PubChem,
+  LipidMaps, InChI, BiGG, VMH...), after checking that the network contains
+  identifiers from that database;
+- match ChEBI identifiers to the metabolites of a network using the ChEBI
+  ontology (`match_chebi`): exact matches, but also more generic/specific
+  classes, conjugate acids/bases, tautomers and enantiomers, with their distance;
 - count/list the reactions involving a metabolite;
 - map a list of metabolite identifiers onto a network and produce a report
   (mapped / not found / ambiguous);
@@ -27,6 +34,10 @@ It exposes tools to:
   `count_reactions_for_metabolite`.
 - "Give me all the metabolites with the formula C3H3O4 in Human-GEM V2."
   → `search_organisms("Human-GEM 2")` then `search_metabolites_by_formula`.
+- "Which metabolites correspond to CHEBI:15422 in Human-GEM V2?"
+  → `search_organisms("Human-GEM 2")` then `search_metabolites_by_external_id`.
+- "Which metabolites of Human-GEM V2 are related to CHEBI:17234?"
+  → `search_organisms("Human-GEM 2")` then `match_chebi`.
 - "I have this file of metabolite identifiers, map it onto Ralstonia and give
   me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
 
@@ -43,10 +54,10 @@ Public networks only:
 claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/mcp-metexplore/mcp
 ```
 
-With your MetExplore user token, to also access your private networks:
+With your MetExplore user token (available in the MetExplore interface in your account profile), to also access your private networks:
 
 ```bash
-claude mcp add --transport http --header "X-MetExplore-Token: <your MetExplore user token>" metexplore https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp/mcp
+claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp/mcp --header "X-MetExplore-Token: YOUR_METEXPLORE_USER-TOKEN"
 ```
 
 Add `--scope user` to make the server available in all your projects.

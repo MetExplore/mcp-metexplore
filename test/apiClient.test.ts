@@ -170,3 +170,34 @@ test("in HTTP mode, user-token auth errors point at the X-MetExplore-Token heade
     },
   );
 });
+
+test("getNetwork reads the network details whatever the envelope", async (t) => {
+  const network = { id: 7, name: "N", stats_refs_metabolites: { chebi: 3 } };
+  const bodies = [{ network }, { networks: [network] }, { results: [network] }, network];
+  let i = 0;
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    assert.match(String(url), /\/networks\/7$/);
+    return jsonResponse({ success: true, message: "OK", status: 200, ...bodies[i++] });
+  });
+  const client = new MetExploreApiClient(baseConfig());
+  for (let k = 0; k < bodies.length; k++) {
+    const n = await client.getNetwork(7);
+    assert.deepEqual(n.stats_refs_metabolites, { chebi: 3 });
+  }
+});
+
+test("matchChebi posts the ChEBI inputs to /match/chebi and returns the results", async (t) => {
+  const results = [{ external_identifier: "chebi:17234", name: "CHEBI:17234", matching_results: [] }];
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    assert.match(String(url), /\/match\/chebi$/);
+    assert.equal(init.method, "POST");
+    assert.deepEqual(JSON.parse(String(init.body)), {
+      id_network: 5,
+      inputs: [{ name: "CHEBI:17234", input_id: "chebi:17234" }],
+      type: "chebi",
+    });
+    return jsonResponse({ success: true, message: "OK", status: 200, results });
+  });
+  const client = new MetExploreApiClient(baseConfig());
+  assert.deepEqual(await client.matchChebi(5, [{ name: "CHEBI:17234", input_id: "chebi:17234" }]), results);
+});

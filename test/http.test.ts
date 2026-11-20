@@ -118,7 +118,9 @@ test("exposes the tools without the SBML export", async (t) => {
     "count_reactions_for_metabolite",
     "get_quota_status",
     "map_metabolites",
+    "match_chebi",
     "search_metabolites",
+    "search_metabolites_by_external_id",
     "search_metabolites_by_formula",
     "search_organisms",
   ]);

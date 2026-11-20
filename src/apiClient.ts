@@ -19,6 +19,8 @@ export interface Network {
   nb_reactions?: number;
   nb_metabolites?: number;
   nb_genes?: number;
+  /** Number of metabolites with a cross-reference, keyed by ext_db_name, e.g. { chebi: 3633 }. */
+  stats_refs_metabolites?: Record<string, number>;
   [key: string]: unknown;
 }
 
@@ -68,6 +70,32 @@ export interface MappingResponse {
     [key: string]: unknown;
   };
   statistics: MappingStatistics;
+}
+
+/** One network metabolite matched to a queried ChEBI through the ChEBI ontology. */
+export interface ChebiMatch {
+  id: number;
+  db_identifier: string;
+  name?: string;
+  /** ChEBI identifier of the network metabolite. */
+  external_identifier?: string;
+  external_identifier_name?: string;
+  /** Number of steps in the ChEBI ontology between the queried and the matched ChEBI (0 = exact). */
+  distance?: number;
+  /** e.g. ["exact"], ["parent-to-child", "conjugate"]. */
+  relations?: string[];
+  compartments?: { id?: number; name?: string; db_identifier?: string }[];
+  [key: string]: unknown;
+}
+
+/** Matching result for one queried ChEBI. */
+export interface ChebiMatchResult {
+  /** Queried ChEBI identifier. */
+  external_identifier: string;
+  external_identifier_name?: string;
+  /** Name given with the query. */
+  name?: string;
+  matching_results?: ChebiMatch[];
 }
 
 export interface FiltersResponse {
@@ -221,6 +249,24 @@ export class MetExploreApiClient {
     return res.networks ?? [];
   }
 
+  /** Details of one network, including stats_refs_metabolites. */
+  async getNetwork(idNetwork: number): Promise<Network> {
+    await this.ensureUserToken();
+    const res = await this.request<
+      BaseEnvelope & { network?: Network; networks?: Network[]; results?: Network[]; id?: number }
+    >("GET", `/networks/${idNetwork}`);
+    // The envelope key is not documented: accept `network`, a one-element list, or a flat object.
+    const network =
+      res.network ??
+      res.networks?.[0] ??
+      res.results?.[0] ??
+      (typeof res.id === "number" ? (res as unknown as Network) : undefined);
+    if (!network) {
+      throw new MetExploreApiError(`Network ${idNetwork} was not found.`, 404);
+    }
+    return network;
+  }
+
   async getMetabolitesForNetwork(idNetwork: number): Promise<Metabolite[]> {
     await this.ensureUserToken();
     // The API returns the list under `results`; `metabolites` is kept for older API versions.
@@ -239,6 +285,17 @@ export class MetExploreApiClient {
       entries: { ids },
     });
     return res;
+  }
+
+  /** Matches ChEBI identifiers to the network metabolites using the ChEBI ontology (POST /match/chebi). */
+  async matchChebi(idNetwork: number, inputs: { name: string; input_id: string }[]): Promise<ChebiMatchResult[]> {
+    await this.ensureUserToken();
+    const res = await this.request<BaseEnvelope & { results?: ChebiMatchResult[] }>("POST", "/match/chebi", {
+      id_network: idNetwork,
+      inputs,
+      type: "chebi",
+    });
+    return res.results ?? [];
   }
 
   async filterReactionsByMetabolites(metaboliteIds: number[]): Promise<FiltersResponse> {

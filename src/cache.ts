@@ -7,6 +7,7 @@ import type { MetExploreApiClient, Metabolite, Network } from "./apiClient.js";
 export class MetExploreCache {
   private networks?: Network[];
   private metabolitesByNetwork = new Map<number, Metabolite[]>();
+  private networkDetails = new Map<number, Network>();
 
   constructor(private readonly client: MetExploreApiClient) {}
 
@@ -15,6 +16,16 @@ export class MetExploreCache {
       this.networks = await this.client.getNetworks();
     }
     return this.networks;
+  }
+
+  /** Details of one network (GET /networks/{id}), e.g. its stats_refs_metabolites. */
+  async getNetworkDetails(idNetwork: number): Promise<Network> {
+    let network = this.networkDetails.get(idNetwork);
+    if (!network) {
+      network = await this.client.getNetwork(idNetwork);
+      this.networkDetails.set(idNetwork, network);
+    }
+    return network;
   }
 
   async getMetabolites(idNetwork: number): Promise<Metabolite[]> {

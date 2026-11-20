@@ -191,7 +191,8 @@ export function registerSearchMetabolites(server: McpServer, ctx: ToolContext) {
         "id, identifier, match kind, chemical formula, compartment and cross-references (KEGG/ChEBI/...): " +
         "ask the user which one they mean instead of choosing. If nothing is close enough, says that " +
         "no metabolite was found. Requires an id_network (see search_organisms). To search by " +
-        "chemical formula (e.g. C3H3O4), use search_metabolites_by_formula instead.",
+        "chemical formula (e.g. C3H3O4), use search_metabolites_by_formula instead; to search by external " +
+        "identifier (ChEBI, KEGG, HMDB...), use search_metabolites_by_external_id.",
       inputSchema: searchMetabolitesInputSchema,
     },
     withErrorHandling(async (args, { cache }) => {

@@ -6,7 +6,9 @@ import type { ToolContext } from "./tools/shared.js";
 import { registerSearchOrganisms } from "./tools/searchOrganisms.js";
 import { registerSearchMetabolites } from "./tools/searchMetabolites.js";
 import { registerSearchMetabolitesByFormula } from "./tools/searchMetabolitesByFormula.js";
+import { registerSearchMetabolitesByExternalId } from "./tools/searchMetabolitesByExternalId.js";
 import { registerCountReactionsForMetabolite } from "./tools/countReactionsForMetabolite.js";
+import { registerMatchChebi } from "./tools/matchChebi.js";
 import { registerMapMetabolites } from "./tools/mapMetabolites.js";
 import { registerGetQuotaStatus } from "./tools/getQuotaStatus.js";
 
@@ -18,7 +20,11 @@ export const SERVER_INSTRUCTIONS =
   "To find metabolites by name or identifier, use search_metabolites. Whenever the user asks for " +
   "metabolites by chemical (molecular) formula, e.g. 'C3H3O4' or 'C6H12O6', use " +
   "search_metabolites_by_formula: it lists every metabolite of the network with that formula, " +
-  "whereas search_metabolites only matches names.";
+  "whereas search_metabolites only matches names. Whenever the user gives an external metabolite " +
+  "identifier (ChEBI, KEGG, HMDB, MetaNetX, PubChem, LipidMaps, InChI, BiGG, VMH...), e.g. 'CHEBI:15422' " +
+  "or 'C00002', use search_metabolites_by_external_id. To find metabolites related to a ChEBI " +
+  "identifier through the ChEBI ontology (parent/child classes, conjugate acid/base, tautomers, " +
+  "enantiomers), or when a ChEBI has no exact match, use match_chebi.";
 
 /**
  * Builds an MCP server bound to one MetExplore session: its own API client
@@ -33,7 +39,9 @@ export function createMcpServer(config: Config, mode: TransportMode): { server: 
   registerSearchOrganisms(server, ctx);
   registerSearchMetabolites(server, ctx);
   registerSearchMetabolitesByFormula(server, ctx);
+  registerSearchMetabolitesByExternalId(server, ctx);
   registerCountReactionsForMetabolite(server, ctx);
+  registerMatchChebi(server, ctx);
   registerMapMetabolites(server, ctx);
   registerGetQuotaStatus(server, ctx);
 
