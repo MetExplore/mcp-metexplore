@@ -119,6 +119,7 @@ test("exposes the tools without the SBML export", async (t) => {
     "get_quota_status",
     "map_metabolites",
     "search_metabolites",
+    "search_metabolites_by_formula",
     "search_organisms",
   ]);
 });

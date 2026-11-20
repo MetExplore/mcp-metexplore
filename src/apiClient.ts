@@ -223,11 +223,12 @@ export class MetExploreApiClient {
 
   async getMetabolitesForNetwork(idNetwork: number): Promise<Metabolite[]> {
     await this.ensureUserToken();
-    const res = await this.request<BaseEnvelope & { metabolites: Metabolite[] }>(
+    // The API returns the list under `results`; `metabolites` is kept for older API versions.
+    const res = await this.request<BaseEnvelope & { results?: Metabolite[]; metabolites?: Metabolite[] }>(
       "GET",
       `/metabolites?id_network=${idNetwork}`,
     );
-    return res.metabolites ?? [];
+    return res.results ?? res.metabolites ?? [];
   }
 
   async mapMetaboliteIds(idNetwork: number, ids: string[]): Promise<MappingResponse> {
@@ -242,7 +243,7 @@ export class MetExploreApiClient {
 
   async filterReactionsByMetabolites(metaboliteIds: number[]): Promise<FiltersResponse> {
     await this.ensureUserToken();
-    const res = await this.request<BaseEnvelope & FiltersResponse>("POST", "/filters", {
+    const res = await this.request<BaseEnvelope & FiltersResponse>("POST", "/filter", {
       filtertype: "Metabolite2Reaction",
       ids: metaboliteIds,
     });

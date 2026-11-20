@@ -1,4 +1,11 @@
+import type { Metabolite } from "./apiClient.js";
+
 export type OutputFormat = "table" | "text";
+
+/** "kegg.compound:C00168; chebi:CHEBI:30841" */
+export function formatCrossRefs(m: Metabolite): string {
+  return (m.cross_refs ?? []).map((r) => `${r.ext_db_name}:${r.ext_id}`).join("; ");
+}
 
 /** Renders a list of homogeneous objects as a markdown table. */
 export function renderTable(rows: Record<string, unknown>[], columns?: string[]): string {

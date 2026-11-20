@@ -12,6 +12,9 @@ It exposes tools to:
   networks match (e.g. "Homo sapiens");
 - search for a metabolite in a network, with disambiguation (id, full name,
   chemical formula, cross-references);
+- list every metabolite of a network with a given chemical formula
+  (`search_metabolites_by_formula`, optionally ignoring hydrogens to catch all
+  protonation states);
 - count/list the reactions involving a metabolite;
 - map a list of metabolite identifiers onto a network and produce a report
   (mapped / not found / ambiguous);
@@ -22,6 +25,8 @@ It exposes tools to:
 - "In how many reactions is glucose involved in humans?"
   → `search_organisms("Homo sapiens")`, then `search_metabolites`, then
   `count_reactions_for_metabolite`.
+- "Give me all the metabolites with the formula C3H3O4 in Human-GEM V2."
+  → `search_organisms("Human-GEM 2")` then `search_metabolites_by_formula`.
 - "I have this file of metabolite identifiers, map it onto Ralstonia and give
   me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
 
@@ -250,20 +255,40 @@ npm run dev    # TypeScript compilation in watch mode
 npm test       # unit tests (node:test, mocked fetch)
 ```
 
-To test interactively against a local MetExplore instance
-(`http://localhost:1337` by default):
+`npm run dev` only recompiles `dist/`; it does not start the server.
+
+### Testing with an LLM client (Claude Code)
+
+1. Terminal 1, recompile on change: 
+	```bash
+	npm run dev
+	```
+2. Terminal 2, start the server in HTTP mode: 
+	```bash
+	MCP_TRANSPORT=http npm start
+	```
+   (listens on `http://127.0.0.1:3000/mcp`; configure `METEXPLORE_API_URL`
+   in `.env`, e.g. `http://localhost:1337`)
+3. Connect Claude Code:
+   ```bash
+   claude mcp add --transport http --scope local metexplore-dev http://127.0.0.1:3000/mcp
+   ```
+   Check the connection with `/mcp`, then ask a test question.
+
+The server does not reload on change: restart it after each rebuild.
+Remove the test entry with `claude mcp remove metexplore-dev`.
+
+### Testing with the MCP Inspector
 
 ```bash
-npx @modelcontextprotocol/inspector node dist/index.js
-# HTTP mode: start the server, then connect the inspector to
-# http://localhost:3000/mcp with the "Streamable HTTP" transport
-MCP_TRANSPORT=http node dist/index.js
+npx @modelcontextprotocol/inspector
+# connect to http://localhost:3000/mcp with the "Streamable HTTP" transport
+# (server started as above)
 ```
 
-Note: the inspector's `--cli` mode spawns the server without inheriting the
-invoking shell's custom environment variables — put test configuration in
-`.env` (read by the server itself via `dotenv`) rather than relying on
-shell-level `VAR=value` prefixes when testing this way.
+Put test configuration in `.env` rather than in shell `VAR=value` prefixes:
+the server reads it via `dotenv`, and the inspector's `--cli` mode does not
+forward the shell's custom environment variables.
 
 ## Known limitations / next steps
 
