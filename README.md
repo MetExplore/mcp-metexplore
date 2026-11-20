@@ -4,8 +4,8 @@ MCP (Model Context Protocol) server for querying the
 [MetExplore API](https://metexplore.pages-forge.inrae.fr/metexplore-api/metexplore3-nodejs-api/)
 from any MCP-compatible client (Claude Desktop, Claude Code, VS Code...).
 
-It can run locally (`stdio` transport) or be deployed as a shared remote
-server (Streamable HTTP transport, Docker image).
+It can be used as a shared **remote server** (Streamable HTTP transport,
+nothing to install) or run **locally** (`stdio` transport).
 
 It exposes tools to:
 - search for a MetExplore organism/network, with disambiguation when several
@@ -17,8 +17,60 @@ It exposes tools to:
   (mapped / not found / ambiguous);
 - check the remaining API request quota for the current session.
 
+## Example questions
 
-## Installation
+- "In how many reactions is glucose involved in humans?"
+  → `search_organisms("Homo sapiens")`, then `search_metabolites`, then
+  `count_reactions_for_metabolite`.
+- "I have this file of metabolite identifiers, map it onto Ralstonia and give
+  me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
+
+## Quick start: use the remote server
+
+No installation and no application key are needed: the server is hosted and
+already holds the MetExplore application key.
+
+### Claude Code (one command)
+
+Public networks only:
+
+```bash
+claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/mcp-metexplore/mcp
+```
+
+With your MetExplore user token, to also access your private networks:
+
+```bash
+claude mcp add --transport http --header "X-MetExplore-Token: <your MetExplore user token>" metexplore https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp/mcp
+```
+
+Add `--scope user` to make the server available in all your projects.
+
+### Other clients (`.mcp.json`, VS Code...)
+
+```json
+{
+  "mcpServers": {
+    "metexplore": {
+      "type": "http",
+      "url": "https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp/mcp",
+      "headers": { "X-MetExplore-Token": "<your MetExplore user token>" }
+    }
+  }
+}
+```
+
+Omit `headers` to access public networks only.
+
+
+## Local use (stdio)
+
+Run the server on your own machine. This requires a MetExplore **application
+key**: ask for one by email at
+[contact-metexplore@inrae.fr](mailto:contact-metexplore@inrae.fr) and put it
+in `METEXPLORE_APP_KEY`.
+
+### Installation
 
 ```bash
 git clone <gitlab-repo-url> mcp-metexplore
@@ -29,12 +81,12 @@ cp .env.example .env
 # edit .env: see the Configuration section below
 ```
 
-## Configuration (`.env`)
+### Configuration (`.env`)
 
 | Variable | Required | Description |
 |---|---|---|
 | `METEXPLORE_API_URL` | no (default `http://localhost:1337`) | Base URL of the MetExplore API, no trailing slash |
-| `METEXPLORE_APP_KEY` | yes | Application token (`x-app-key` header) |
+| `METEXPLORE_APP_KEY` | yes | Application token (`x-app-key` header), to request from contact-metexplore@inrae.fr |
 | `METEXPLORE_USER_TOKEN` | no (stdio only) | A user token already obtained |
 | `METEXPLORE_USER_LOGIN` / `METEXPLORE_USER_PASSWORD` | no (stdio only, set together) | Credentials used to call `/users/login` on first use |
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION` | no (default `20`) | Max number of requests sent to the API per MCP session |
@@ -44,15 +96,10 @@ cp .env.example .env
 Without any user credentials, the API is queried with the app key only: only
 **public** networks are visible.
 
-If `METEXPLORE_APP_KEY` is missing, the server refuses to start with an
-explicit message instead of failing later with a confusing 401. Likewise, any
-authentication error returned by the API (missing/invalid/expired app or user
-token) is translated into a clear message stating what to check (`.env` in
-stdio mode, the `X-MetExplore-Token` header in HTTP mode).
 
-HTTP-mode variables are described in "Remote deployment (HTTP)" below.
+HTTP-mode variables are described in "Remote deployment" below.
 
-## Using it with an MCP client (local, stdio)
+### Client configuration
 
 Example configuration for Claude Desktop / Claude Code
 (`claude_desktop_config.json` or equivalent):
@@ -70,14 +117,12 @@ Example configuration for Claude Desktop / Claude Code
 
 Environment variables can also be passed directly in this configuration block
 (`"env": {...}`) instead of via a `.env` file.
-	
-## Example questions
 
-- "In how many reactions is glucose involved in humans?"
-  → `search_organisms("Homo sapiens")`, then `search_metabolites`, then
-  `count_reactions_for_metabolite`.
-- "I have this file of metabolite identifiers, map it onto Ralstonia and give
-  me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
+Or with Claude Code:
+
+```bash
+claude mcp add metexplore --env METEXPLORE_APP_KEY=<your app key> -- node /absolute/path/to/mcp-metexplore/dist/index.js
+```
 
 ## API request quota
 
@@ -90,20 +135,13 @@ repeated searches over the same data. The remaining quota can be checked with
 the `get_quota_status` tool. Once the quota is reached, restart the server
 (stdio) or reconnect the client to open a new session (HTTP).
 
-## Remote deployment (HTTP)
+## Remote deployment (HTTP, for administrators)
 
 With `MCP_TRANSPORT=http`, the server exposes the MCP
 [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http)
 transport on `/mcp`, plus `GET /health` (used by the Docker healthcheck).
-
-- **Authentication**: each client may send its own MetExplore user token in
-  the `X-MetExplore-Token` header. Without it, the session is anonymous and
-  only sees public networks. `METEXPLORE_USER_*` variables are ignored on the
-  server in this mode; only `METEXPLORE_APP_KEY` is shared.
-- **Isolation**: each MCP session gets its own API client, token, quota and
-  cache. Tokens are kept in memory only and never logged.
-- **Abuse protection**: per-IP rate limit, maximum number of concurrent
-  sessions, idle sessions closed automatically.
+`METEXPLORE_USER_*` variables are ignored in this mode; only
+`METEXPLORE_APP_KEY` is shared by all clients.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -113,24 +151,6 @@ transport on `/mcp`, plus `GET /health` (used by the Docker healthcheck).
 | `MCP_RATE_LIMIT_PER_MINUTE` | `60` | Max HTTP requests per client IP per minute on `/mcp` |
 | `MCP_MAX_SESSIONS` | `200` | Max concurrent MCP sessions (503 beyond) |
 | `MCP_SESSION_TTL_MINUTES` | `30` | Idle sessions are closed after this delay |
-
-### Client configuration
-
-Claude Code (`.mcp.json` or `claude mcp add --transport http ...`):
-
-```json
-{
-  "mcpServers": {
-    "metexplore": {
-      "type": "http",
-      "url": "https://<public-host>/mcp",
-      "headers": { "X-MetExplore-Token": "<your MetExplore user token>" }
-    }
-  }
-}
-```
-
-Omit `headers` to access public networks only.
 
 ### Docker
 
@@ -255,21 +275,4 @@ shell-level `VAR=value` prefixes when testing this way.
 - `GET /networks` and `GET /metabolites` don't support server-side filtering
   by name: searching happens client-side over the full (cached) list. For a
   very large network, the first metabolite search can be sizeable.
-- When pointing at the production instance
-  (`https://metexplore.toulouse.inrae.fr/metexplore3-api`), calls fail with
-  `unable to verify the first certificate`: the server only serves its leaf
-  certificate, without its CA's intermediate certificate ("GEANT TLS RSA 1").
-  This isn't Node.js-specific — a plain `curl` on the same machine fails the
-  same way (`unable to get local issuer certificate`); the server really does
-  serve an incomplete chain. Other MetExplore client code in the wider
-  codebase works around this by disabling TLS verification entirely
-  (`rejectUnauthorized: false`), not by resolving the chain differently.
-  The real fix belongs on the server side (configure the full certificate
-  chain, e.g. `SSLCertificateChainFile` on Apache). Two client-side
-  workarounds, safest first:
-  1. `NODE_EXTRA_CA_CERTS=/path/to/intermediate.pem` with the intermediate
-     certificate exported from a browser that displays the site (keeps TLS
-     verification active).
-  2. `METEXPLORE_TLS_REJECT_UNAUTHORIZED=false` in `.env` — disables
-     certificate verification entirely, so it's vulnerable to TLS
-     interception. Only use this if you trust the network path to the server.
+
