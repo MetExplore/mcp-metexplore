@@ -1,33 +1,32 @@
 # mcp-metexplore
 
+[![pipeline status](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/badges/main/pipeline.svg)](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/commits/main)
+[![Latest Release](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/badges/release.svg)](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/releases)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+<!-- If your software has been certified by MetaboHUB, put the following badge here : -->
+<!-- [![MetaboHUB Logo](https://forge.inrae.fr/metabohub/e-tools/template-readme-mth/-/raw/main/logos/metabohub_logo-20x20.png?ref_type=heads)![MetaboHUB title](https://img.shields.io/badge/MetaboHub-Software-0066cc?style=flat-square)](https://www.metabohub.fr) -->
+
+## Metadata
+
+- authors: <ludovic.cottret@inrae.fr> with claude-opus-5-5
+- creation date: `2026-11-13`
+- main usage: MCP (Model Context Protocol) server to query MetExplore metabolic networks from LLM clients
+
+## Description
+
 MCP (Model Context Protocol) server for querying the
 [MetExplore API](https://metexplore.pages-forge.inrae.fr/metexplore-api/metexplore3-nodejs-api/)
 from any MCP-compatible client (Claude Desktop, Claude Code, VS Code...).
 
+It lets users ask questions about MetExplore organisms, metabolites and
+reactions in natural language, the LLM client calling the MetExplore API
+through the tools exposed by this server.
+
 It can be used as a shared **remote server** (Streamable HTTP transport,
 nothing to install) or run **locally** (`stdio` transport).
 
-It exposes tools to:
-- search for a MetExplore organism/network, with disambiguation when several
-  networks match (e.g. "Homo sapiens");
-- search for a metabolite in a network, with disambiguation (id, full name,
-  chemical formula, cross-references);
-- list every metabolite of a network with a given chemical formula
-  (`search_metabolites_by_formula`, optionally ignoring hydrogens to catch all
-  protonation states);
-- list every metabolite of a network cross-referenced to an external identifier
-  (`search_metabolites_by_external_id`: ChEBI, KEGG, HMDB, MetaNetX, PubChem,
-  LipidMaps, InChI, BiGG, VMH...), after checking that the network contains
-  identifiers from that database;
-- match ChEBI identifiers to the metabolites of a network using the ChEBI
-  ontology (`match_chebi`): exact matches, but also more generic/specific
-  classes, conjugate acids/bases, tautomers and enantiomers, with their distance;
-- count/list the reactions involving a metabolite;
-- map a list of metabolite identifiers onto a network and produce a report
-  (mapped / not found / ambiguous);
-- check the remaining API request quota for the current session.
-
-## Example questions
+### Example questions
 
 - "In how many reactions is glucose involved in humans?"
   → `search_organisms("Homo sapiens")`, then `search_metabolites`, then
@@ -41,35 +40,90 @@ It exposes tools to:
 - "I have this file of metabolite identifiers, map it onto Ralstonia and give
   me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
 
-## Quick start: use the remote server
+## Features
+
+- :mag: **`search_organisms`**: search for a MetExplore organism/network, with
+  disambiguation when several networks match (e.g. "Homo sapiens").
+- :test_tube: **`search_metabolites`**: search for a metabolite in a network,
+  with disambiguation (id, full name, chemical formula, cross-references).
+- :atom_symbol: **`search_metabolites_by_formula`**: list every metabolite of a
+  network with a given chemical formula, optionally ignoring hydrogens to catch
+  all protonation states.
+- :link: **`search_metabolites_by_external_id`**: list every metabolite of a
+  network cross-referenced to an external identifier (ChEBI, KEGG, HMDB,
+  MetaNetX, PubChem, LipidMaps, InChI, BiGG, VMH...), after checking that the
+  network contains identifiers from that database.
+- :deciduous_tree: **`match_chebi`**: match ChEBI identifiers to the metabolites
+  of a network using the ChEBI ontology: exact matches, but also more
+  generic/specific classes, conjugate acids/bases, tautomers and enantiomers,
+  with their distance.
+- :abacus: **`count_reactions_for_metabolite`**: count/list the reactions
+  involving a metabolite.
+- :bar_chart: **`map_metabolites`**: map a list of metabolite identifiers onto a
+  network and produce a report (mapped / not found / ambiguous).
+- :hourglass: **`get_quota_status`**: check the remaining API request quota for
+  the current session.
+
+### API request quota
+
+To avoid overloading the MetExplore API, the server limits the number of HTTP
+requests actually sent to `METEXPLORE_MAX_REQUESTS_PER_SESSION` (20 by
+default) per MCP session: the whole process lifetime in stdio mode, one MCP
+session (one client connection) in HTTP mode. An in-memory, per-session cache
+(network list, metabolites per network) avoids re-spending this quota on
+repeated searches over the same data. The remaining quota can be checked with
+the `get_quota_status` tool. Once the quota is reached, restart the server
+(stdio) or reconnect the client to open a new session (HTTP).
+
+## Getting Started
+
+The easiest way is to use the hosted remote server (no installation, no
+application key). The server can also be run locally (stdio).
+
+### Prerequisites
+
+- **MCP client**: any MCP-compatible client (Claude Code, Claude Desktop,
+  VS Code...)
+- **Remote use**: nothing else
+- **Local use**:
+  - **Operating System**: Linux, macOS or Windows
+  - **Node.js**: version 18 or higher
+  - **npm**
+  - a MetExplore **application key**: ask for one by email at
+    [contact-metexplore@inrae.fr](mailto:contact-metexplore@inrae.fr)
+- **Optional**: a MetExplore user token (available in the MetExplore interface,
+  in your account profile) to access your private networks
+- **Deployment only**: Docker
+
+### Installing
+
+#### Option 1: use the remote server
 
 No installation and no application key are needed: the server is hosted and
 already holds the MetExplore application key.
 
-### Claude Code (one command)
-
-Public networks only:
+**Claude Code (one command)** — public networks only:
 
 ```bash
-claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/mcp-metexplore/mcp
+claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp
 ```
 
-With your MetExplore user token (available in the MetExplore interface in your account profile), to also access your private networks:
+With your MetExplore user token, to also access your private networks:
 
 ```bash
-claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp/mcp --header "X-MetExplore-Token: YOUR_METEXPLORE_USER-TOKEN"
+claude mcp add --transport http metexplore https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp --header "X-MetExplore-Token: YOUR_METEXPLORE_USER-TOKEN"
 ```
 
 Add `--scope user` to make the server available in all your projects.
 
-### Other clients (`.mcp.json`, VS Code...)
+**Other clients (`.mcp.json`, VS Code...)**:
 
 ```json
 {
   "mcpServers": {
     "metexplore": {
       "type": "http",
-      "url": "https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp/mcp",
+      "url": "https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp",
       "headers": { "X-MetExplore-Token": "<your MetExplore user token>" }
     }
   }
@@ -78,26 +132,20 @@ Add `--scope user` to make the server available in all your projects.
 
 Omit `headers` to access public networks only.
 
+#### Option 2: local use (stdio)
 
-## Local use (stdio)
-
-Run the server on your own machine. This requires a MetExplore **application
-key**: ask for one by email at
-[contact-metexplore@inrae.fr](mailto:contact-metexplore@inrae.fr) and put it
-in `METEXPLORE_APP_KEY`.
-
-### Installation
+Install and build the server:
 
 ```bash
-git clone <gitlab-repo-url> mcp-metexplore
+git clone https://forge.inrae.fr/metexplore/mcp/mcp-metexplore.git
 cd mcp-metexplore
 npm install
 npm run build
 cp .env.example .env
-# edit .env: see the Configuration section below
+# edit .env: see the configuration table below
 ```
 
-### Configuration (`.env`)
+Configuration (`.env`):
 
 | Variable | Required | Description |
 |---|---|---|
@@ -106,18 +154,14 @@ cp .env.example .env
 | `METEXPLORE_USER_TOKEN` | no (stdio only) | A user token already obtained |
 | `METEXPLORE_USER_LOGIN` / `METEXPLORE_USER_PASSWORD` | no (stdio only, set together) | Credentials used to call `/users/login` on first use |
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION` | no (default `20`) | Max number of requests sent to the API per MCP session |
-| `METEXPLORE_TLS_REJECT_UNAUTHORIZED` | no (default `true`) | Set to `false` to disable TLS certificate verification (see "Known limitations") |
+| `METEXPLORE_TLS_REJECT_UNAUTHORIZED` | no (default `true`) | Set to `false` to disable TLS certificate verification |
 | `MCP_TRANSPORT` | no (default `stdio`) | `stdio` (local use) or `http` (remote deployment) |
 
 Without any user credentials, the API is queried with the app key only: only
-**public** networks are visible.
+**public** networks are visible. HTTP-mode variables are described in
+[Deployment](#deployment).
 
-
-HTTP-mode variables are described in "Remote deployment" below.
-
-### Client configuration
-
-Example configuration for Claude Desktop / Claude Code
+Then register the server in your client, e.g. for Claude Desktop / Claude Code
 (`claude_desktop_config.json` or equivalent):
 
 ```json
@@ -140,18 +184,24 @@ Or with Claude Code:
 claude mcp add metexplore --env METEXPLORE_APP_KEY=<your app key> -- node /absolute/path/to/mcp-metexplore/dist/index.js
 ```
 
-## API request quota
+Check the connection with `/mcp` in Claude Code, then ask one of the
+[example questions](#example-questions).
 
-To avoid overloading the MetExplore API, the server limits the number of HTTP
-requests actually sent to `METEXPLORE_MAX_REQUESTS_PER_SESSION` (20 by
-default) per MCP session: the whole process lifetime in stdio mode, one MCP
-session (one client connection) in HTTP mode. An in-memory, per-session cache
-(network list, metabolites per network) avoids re-spending this quota on
-repeated searches over the same data. The remaining quota can be checked with
-the `get_quota_status` tool. Once the quota is reached, restart the server
-(stdio) or reconnect the client to open a new session (HTTP).
+### Running the tests
 
-## Remote deployment (HTTP, for administrators)
+Unit tests use `node:test` with a mocked `fetch` (no MetExplore API needed):
+
+```bash
+npm test
+```
+
+They cover the tools (search, disambiguation, formula/external id matching,
+ChEBI ontology matching, mapping report), the API client, the configuration,
+the output formatting and the HTTP transport.
+
+## Deployment
+
+### Remote deployment (HTTP)
 
 With `MCP_TRANSPORT=http`, the server exposes the MCP
 [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http)
@@ -178,10 +228,10 @@ docker run --rm -p 127.0.0.1:3000:3000 \
 curl http://localhost:3000/health
 ```
 
-On the servers (see "Continuous deployment"), the container is
-only bound to `127.0.0.1:${HOST_PORT}`; TLS and the public domain name are
-handled by the host's reverse proxy, which must keep the original `Host`
-header and should not buffer responses. Example (nginx):
+On the servers (see [Continuous deployment](#continuous-deployment-gitlab-ci)),
+the container is only bound to `127.0.0.1:${HOST_PORT}`; TLS and the public
+domain name are handled by the host's reverse proxy, which must keep the
+original `Host` header and should not buffer responses. Example (nginx):
 
 ```nginx
 location /mcp {
@@ -259,7 +309,24 @@ for one environment).
 Protected variables are only exposed on protected branches/tags: protect
 `develop` and the release tags `*.*.*` (Settings > Repository).
 
-## Development
+### Known limitations
+
+- HTTP sessions are kept in memory: a single container instance is assumed
+  (no horizontal scaling without sticky sessions), and a restart closes all
+  sessions (clients transparently re-initialize).
+- The quota is per MCP session; the per-IP rate limit is what bounds a client
+  opening many sessions.
+- `GET /networks` and `GET /metabolites` don't support server-side filtering
+  by name: searching happens client-side over the full (cached) list. For a
+  very large network, the first metabolite search can be sizeable.
+
+## Contributing
+
+We welcome contributions!
+Please open an issue or a merge request on the
+[forge repository](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore).
+
+### Development Guidelines
 
 ```bash
 npm run dev    # TypeScript compilation in watch mode
@@ -268,28 +335,35 @@ npm test       # unit tests (node:test, mocked fetch)
 
 `npm run dev` only recompiles `dist/`; it does not start the server.
 
-### Testing with an LLM client (Claude Code)
+#### Testing with an LLM client (Claude Code)
 
-1. Terminal 1, recompile on change: 
-	```bash
-	npm run dev
-	```
-2. Terminal 2, start the server in HTTP mode: 
-	```bash
-	MCP_TRANSPORT=http npm start
-	```
+1. Terminal 1, recompile on change:
+
+   ```bash
+   npm run dev
+   ```
+
+2. Terminal 2, start the server in HTTP mode:
+
+   ```bash
+   MCP_TRANSPORT=http npm start
+   ```
+
    (listens on `http://127.0.0.1:3000/mcp`; configure `METEXPLORE_API_URL`
    in `.env`, e.g. `http://localhost:1337`)
+
 3. Connect Claude Code:
+
    ```bash
    claude mcp add --transport http --scope local metexplore-dev http://127.0.0.1:3000/mcp
    ```
+
    Check the connection with `/mcp`, then ask a test question.
 
 The server does not reload on change: restart it after each rebuild.
 Remove the test entry with `claude mcp remove metexplore-dev`.
 
-### Testing with the MCP Inspector
+#### Testing with the MCP Inspector
 
 ```bash
 npx @modelcontextprotocol/inspector
@@ -301,14 +375,41 @@ Put test configuration in `.env` rather than in shell `VAR=value` prefixes:
 the server reads it via `dotenv`, and the inspector's `--cli` mode does not
 forward the shell's custom environment variables.
 
-## Known limitations / next steps
+### Code Style
 
-- HTTP sessions are kept in memory: a single container instance is assumed
-  (no horizontal scaling without sticky sessions), and a restart closes all
-  sessions (clients transparently re-initialize).
-- The quota is per MCP session; the per-IP rate limit is what bounds a client
-  opening many sessions.
-- `GET /networks` and `GET /metabolites` don't support server-side filtering
-  by name: searching happens client-side over the full (cached) list. For a
-  very large network, the first metabolite search can be sizeable.
+- TypeScript (strict mode), ES modules
+- Tool inputs are validated with [Zod](https://zod.dev/)
 
+## Changelog
+
+All notable changes to this project will be documented in [CHANGELOG.md](CHANGELOG.md).
+For the versions available, see the [releases on this repository](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/releases).
+
+## Authors
+
+- **Ludovic Cottret** - *Design, prompting, and reviewing* - MTH, INRAE, MetaToul
+- **Claude code** - *Code generation* - claude-opus-5-5 model
+
+## License
+
+**mcp-metexplore** is distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+Please refer to [LICENSE](LICENSE) file for further details.
+
+## Support &amp; External resources
+
+- :book: **MetExplore API documentation** - [MetExplore API](https://metexplore.pages-forge.inrae.fr/metexplore-api/metexplore3-nodejs-api/)
+- :scroll: **MCP specification** - [Model Context Protocol](https://modelcontextprotocol.io/)
+- :bug: **Bug Reports** - [Forge issues](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/issues)
+- :email: **Email** - <contact-metexplore@inrae.fr>
+
+## Acknowledgments
+
+- Built with the [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+- Relies on the [MetExplore](https://metexplore.toulouse.inrae.fr) web server and API
+- Supported by [MetaboHUB](https://www.metabohub.fr)
+
+## Additional Resources
+
+- [MetExplore website](https://metexplore.toulouse.inrae.fr)
+
+---

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { MetExploreApiClient } from "../apiClient.js";
 import type { MetExploreCache } from "../cache.js";

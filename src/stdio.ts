@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Config } from "./config.js";
 import { createMcpServer } from "./server.js";
