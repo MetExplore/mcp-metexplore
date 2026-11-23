@@ -266,7 +266,11 @@ to the VMs.
 |---|---|---|---|
 | any branch / MR | `test` | — | — |
 | push on `develop` | `build:develop`, `deploy:develop` | `:develop-<sha>`, `:develop` | environment `develop` |
-| tag `X.Y.Z` | `build:release`, `deploy:production` | `:X.Y.Z`, `:latest` | environment `production` |
+| tag `X.Y.Z` | `build:release`, `deploy:production`, `release` | `:X.Y.Z`, `:latest` | environment `production` + GitLab release |
+
+The `release` job creates the GitLab release of the tag (Deploy > Releases),
+using the `## X.Y.Z` section of [CHANGELOG.md](CHANGELOG.md) as its description:
+add that section before pushing the tag.
 
 Deployment writes no file on the VM: the job pipes a script to `ssh … sh -s`
 that pulls the image, replaces the `mcp-metexplore` container with
