@@ -42,26 +42,26 @@ nothing to install) or run **locally** (`stdio` transport).
 
 ## Features
 
-- :mag: **`search_organisms`**: search for a MetExplore organism/network, with
+- **`search_organisms`**: search for a MetExplore organism/network, with
   disambiguation when several networks match (e.g. "Homo sapiens").
-- :test_tube: **`search_metabolites`**: search for a metabolite in a network,
+- **`search_metabolites`**: search for a metabolite in a network,
   with disambiguation (id, full name, chemical formula, cross-references).
-- :atom_symbol: **`search_metabolites_by_formula`**: list every metabolite of a
+- **`search_metabolites_by_formula`**: list every metabolite of a
   network with a given chemical formula, optionally ignoring hydrogens to catch
   all protonation states.
-- :link: **`search_metabolites_by_external_id`**: list every metabolite of a
+- **`search_metabolites_by_external_id`**: list every metabolite of a
   network cross-referenced to an external identifier (ChEBI, KEGG, HMDB,
   MetaNetX, PubChem, LipidMaps, InChI, BiGG, VMH...), after checking that the
   network contains identifiers from that database.
-- :deciduous_tree: **`match_chebi`**: match ChEBI identifiers to the metabolites
+- **`match_chebi`**: match ChEBI identifiers to the metabolites
   of a network using the ChEBI ontology: exact matches, but also more
   generic/specific classes, conjugate acids/bases, tautomers and enantiomers,
   with their distance.
-- :abacus: **`count_reactions_for_metabolite`**: count/list the reactions
+- **`count_reactions_for_metabolite`**: count/list the reactions
   involving a metabolite.
-- :bar_chart: **`map_metabolites`**: map a list of metabolite identifiers onto a
+- **`map_metabolites`**: map a list of metabolite identifiers onto a
   network and produce a report (mapped / not found / ambiguous).
-- :hourglass: **`get_quota_status`**: check the remaining API request quota for
+- **`get_quota_status`**: check the remaining API request quota for
   the current session.
 
 ### API request quota
