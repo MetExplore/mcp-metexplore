@@ -4,6 +4,7 @@
 #   - any branch / merge request : unit tests (in Docker)
 #   - push on develop            : build image -> registry -> deploy on the "develop" VM
 #   - tag X.Y.Z                  : build image -> registry -> deploy on the "production" VM
+#                                  -> GitLab release (notes taken from CHANGELOG.md)
 #
 # Runner: tag vm-metexplore-dev, docker executor. The test/build jobs talk to the host's
 # Docker daemon through its socket, which must be mounted in the runner's config.toml:
@@ -17,6 +18,7 @@ stages:
   - test
   - build
   - deploy
+  - release
 
 default:
   tags:
@@ -258,3 +260,32 @@ stop:production:
   rules:
     - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
       when: manual
+
+# ---------------------------------------------------------------------------
+# GitLab release for each X.Y.Z tag, once the image is published. The description
+# is the "## X.Y.Z" section of CHANGELOG.md (fallback: a link to the changelog).
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: [build:release]
+  rules:
+    - *on_release
+  script:
+    - |
+      set -eu
+      awk -v tag="$CI_COMMIT_TAG" '
+        /^## / { if (found) exit; found = ($2 == tag); next }
+        found
+      ' CHANGELOG.md > release-notes.md
+      if ! grep -q '[^[:space:]]' release-notes.md; then
+        echo "No '## $CI_COMMIT_TAG' section in CHANGELOG.md, using a default description"
+        printf 'See [CHANGELOG.md](%s/-/blob/%s/CHANGELOG.md).\n' "$CI_PROJECT_URL" "$CI_COMMIT_TAG" > release-notes.md
+      fi
+      {
+        printf '\n**Docker image:** `%s:%s`\n' "$CI_REGISTRY_IMAGE" "$CI_COMMIT_TAG"
+      } >> release-notes.md
+      cat release-notes.md
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: $CI_COMMIT_TAG
+    description: release-notes.md
