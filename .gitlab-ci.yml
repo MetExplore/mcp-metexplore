@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # CI/CD for mcp-metexplore
 #
 #   - any branch / merge request : unit tests (in Docker)

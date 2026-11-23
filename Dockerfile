@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# SPDX-License-Identifier: Apache-2.0
 
 FROM node:22-alpine AS deps
 WORKDIR /app

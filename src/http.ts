@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { randomUUID } from "node:crypto";

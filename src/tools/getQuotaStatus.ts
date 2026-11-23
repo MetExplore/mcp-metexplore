@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { textResult, withErrorHandling, type ToolContext } from "./shared.js";
 
