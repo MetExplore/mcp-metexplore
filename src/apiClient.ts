@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import type { Config, TransportMode } from "./config.js";
 import { MetExploreApiError, MetExploreAuthError, MetExploreQuotaError, toFriendlyAuthMessage } from "./errors.js";
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import type { TransportMode } from "./config.js";
 
 export class MetExploreAuthError extends Error {}

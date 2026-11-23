@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: Apache-2.0
 import { loadConfig, loadHttpConfig, loadTransportMode } from "./config.js";
 import { startHttp } from "./http.js";
 import { startStdio } from "./stdio.js";
