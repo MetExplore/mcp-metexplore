@@ -22,17 +22,24 @@ export function registerCountReactionsForMetabolite(server: McpServer, ctx: Tool
     {
       title: "Count the reactions involving a metabolite",
       description:
-        "Returns the number and list of reactions in the network that involve a given metabolite. " +
+        "Returns the number and list of reactions (id, db_identifier, name) in the network that involve a given metabolite. " +
         "The metabolite must first be resolved to an internal id via search_metabolites.",
       inputSchema: countReactionsInputSchema,
     },
-    withErrorHandling(async (args, { client }) => {
+    withErrorHandling(async (args, { client, cache }) => {
       const format: OutputFormat = args.output_format ?? "table";
       const res = await client.filterReactionsByMetabolites([args.id_metabolite]);
+      // The /filter endpoint does not fill `names`: take them from the (cached) reactions of the network.
+      const namesById = new Map<number, string>();
+      if (res.ids.length > 0 && !res.ids.every((_, i) => res.names?.[i])) {
+        for (const reaction of await cache.getReactions(args.id_network)) {
+          namesById.set(reaction.id, reaction.name);
+        }
+      }
       const rows = res.ids.map((id, i) => ({
         id,
         db_identifier: res.db_identifiers[i],
-        name: res.names[i],
+        name: res.names?.[i] || namesById.get(id) || "",
       }));
       return textResult(
         `Metabolite ${args.id_metabolite} is involved in ${res.ids.length} reaction(s) ` +
