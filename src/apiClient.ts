@@ -54,6 +54,15 @@ export interface Reaction {
   [key: string]: unknown;
 }
 
+export interface Pathway {
+  id: number;
+  name: string;
+  db_identifier: string;
+  id_network?: number;
+  nb_reactions?: number;
+  [key: string]: unknown;
+}
+
 /** Pathway enrichment result for one pathway (right-tailed Fisher exact test). */
 export interface EnrichmentEntry {
   label: string;
@@ -297,6 +306,15 @@ export class MetExploreApiClient {
       `/reactions?id_network=${idNetwork}`,
     );
     return res.results ?? res.reactions ?? [];
+  }
+
+  async getPathwaysForNetwork(idNetwork: number): Promise<Pathway[]> {
+    await this.ensureUserToken();
+    const res = await this.request<BaseEnvelope & { results?: Pathway[]; pathways?: Pathway[] }>(
+      "GET",
+      `/pathways?id_network=${idNetwork}`,
+    );
+    return res.results ?? res.pathways ?? [];
   }
 
   async mapMetaboliteIds(idNetwork: number, ids: string[]): Promise<MappingResponse> {

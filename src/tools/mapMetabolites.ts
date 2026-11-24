@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Metabolite, MappingResponse } from "../apiClient.js";
+import type { Metabolite, MappingResponse, Pathway } from "../apiClient.js";
 import { renderRows, type OutputFormat } from "../format.js";
-import { textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { withErrorHandling, type ToolContext } from "./shared.js";
 
 const MAX_ENRICHMENT_ROWS = 20;
 
@@ -19,6 +19,63 @@ export const mapMetabolitesInputSchema = {
     .describe("Format of the mapping report: markdown table or text. Default: table."),
 };
 
+/** One enriched pathway in the structured mapping result. */
+export interface MappingPathway {
+  /** Numeric pathway id (for /networks/{id_network}/pathways/{id}/graph), null if unresolved. */
+  id: number | null;
+  db_identifier: string;
+  name: string;
+  mapped: number;
+  total: number;
+  pval: number;
+  bonferroni_pval: number;
+  bh_pval: number;
+}
+
+/** Machine-readable mapping result, returned as MCP structuredContent (for client UIs). */
+export interface MappingStructured {
+  kind: "metabolite_mapping";
+  id_network: number;
+  mapped: { entry: string; db_identifier: string }[];
+  not_found: string[];
+  ambiguous: { entry: string; db_identifiers: string[] }[];
+  /** Top enriched pathways, sorted by bh_pval. */
+  pathways: MappingPathway[];
+}
+
+/**
+ * Enriched pathways sorted by bh_pval (top MAX_ENRICHMENT_ROWS), with their numeric id
+ * resolved from the network pathways (the enrichment is keyed by the pathway db_identifier).
+ */
+function rankEnrichedPathways(mapping: MappingResponse, pathways: Pathway[]): {
+  total: number;
+  significant: number;
+  top: MappingPathway[];
+} {
+  const byDbId = new Map(pathways.map((p) => [p.db_identifier, p]));
+  const byName = new Map(pathways.map((p) => [p.name, p]));
+  const all = Object.entries(mapping.statistics.enrichment ?? {})
+    .map(([key, e]): MappingPathway => {
+      const p = byDbId.get(key) ?? byName.get(key) ?? byName.get(e.label);
+      return {
+        id: p?.id ?? null,
+        db_identifier: p?.db_identifier ?? key,
+        name: e.label,
+        mapped: e.nb_mapped_biodata,
+        total: e.nb_total_biodata,
+        pval: e.pval,
+        bonferroni_pval: e.bonferroni_pval,
+        bh_pval: e.bh_pval,
+      };
+    })
+    .sort((a, b) => a.bh_pval - b.bh_pval);
+  return {
+    total: all.length,
+    significant: all.filter((e) => e.bh_pval < 0.05).length,
+    top: all.slice(0, MAX_ENRICHMENT_ROWS),
+  };
+}
+
 /**
  * Builds the mapping report (mapped / not found / ambiguous) from the raw API
  * response and the network's metabolite list (to enrich ambiguous entries
@@ -30,7 +87,8 @@ export function buildMappingReport(
   mapping: MappingResponse,
   metabolites: Metabolite[],
   format: OutputFormat,
-): string {
+  pathways: Pathway[] = [],
+): { text: string; structured: MappingStructured } {
   const byDbId = new Map(metabolites.map((m) => [m.db_identifier, m]));
 
   const unmapped: string[] = [];
@@ -80,20 +138,21 @@ export function buildMappingReport(
     parts.push(`\n**Ambiguous (several matching metabolites, to choose from):**\n${renderRows(format, ambiguousRows)}`);
   }
 
-  const enrichmentEntries = Object.values(stats.enrichment ?? {}).sort((a, b) => a.bh_pval - b.bh_pval);
-  const significantCount = enrichmentEntries.filter((e) => e.bh_pval < 0.05).length;
-  const topEnrichmentRows = enrichmentEntries.slice(0, MAX_ENRICHMENT_ROWS).map((e) => ({
-    pathway: e.label,
-    mapped: e.nb_mapped_biodata,
-    total: e.nb_total_biodata,
+  const enrichment = rankEnrichedPathways(mapping, pathways);
+  const significantCount = enrichment.significant;
+  const topEnrichmentRows = enrichment.top.map((e) => ({
+    pathway: e.name,
+    id: e.id ?? "",
+    mapped: e.mapped,
+    total: e.total,
     pval: e.pval.toExponential(2),
     bonferroni_pval: e.bonferroni_pval.toExponential(2),
     bh_pval: e.bh_pval.toExponential(2),
   }));
   if (topEnrichmentRows.length > 0) {
-    const omitted = enrichmentEntries.length - topEnrichmentRows.length;
+    const omitted = enrichment.total - topEnrichmentRows.length;
     parts.push(
-      `\n**Pathway enrichment**: ${significantCount}/${enrichmentEntries.length} pathway(s) with ` +
+      `\n**Pathway enrichment**: ${significantCount}/${enrichment.total} pathway(s) with ` +
         "mapped entities are significant at bh_pval < 0.05 (right-tailed Fisher exact test; " +
         `pval/bonferroni_pval/bh_pval columns). Top ${topEnrichmentRows.length} by bh_pval` +
         `${omitted > 0 ? ` (${omitted} more omitted)` : ""}:\n${renderRows(format, topEnrichmentRows)}`,
@@ -108,7 +167,20 @@ export function buildMappingReport(
     }
   }
 
-  return parts.join("\n");
+  return {
+    text: parts.join("\n"),
+    structured: {
+      kind: "metabolite_mapping",
+      id_network: idNetwork,
+      mapped,
+      not_found: unmapped,
+      ambiguous: ambiguous.map((a) => ({
+        entry: a.entry,
+        db_identifiers: a.candidates.map((c) => String(c.db_identifier)),
+      })),
+      pathways: enrichment.top,
+    },
+  };
 }
 
 export function registerMapMetabolites(server: McpServer, ctx: ToolContext) {
@@ -121,18 +193,31 @@ export function registerMapMetabolites(server: McpServer, ctx: ToolContext) {
         "produces a report: mapped, not found, or ambiguous entries (several matching metabolites, " +
         "each with its full name, formula and cross-references so the user can choose), AND a " +
         "pathway enrichment table (right-tailed Fisher exact test, with Bonferroni and " +
-        "Benjamini-Hochberg corrected p-values) for the mapped metabolites — this already answers " +
+        "Benjamini-Hochberg corrected p-values, with the numeric pathway id) for the mapped metabolites — this already answers " +
         "'which pathways are overrepresented' questions; no other tool or export is needed for that. " +
         "The target network must first be resolved via search_organisms.",
       inputSchema: mapMetabolitesInputSchema,
     },
     withErrorHandling(async (args, { client, cache }) => {
       const format: OutputFormat = args.output_format ?? "table";
-      const [mapping, metabolites] = await Promise.all([
+      const [mapping, metabolites, pathways] = await Promise.all([
         client.mapMetaboliteIds(args.id_network, args.ids),
         cache.getMetabolites(args.id_network),
+        // pathway ids are only needed to draw a pathway: do not fail the mapping without them
+        cache.getPathways(args.id_network).catch(() => [] as Pathway[]),
       ]);
-      return textResult(buildMappingReport(args.id_network, args.ids, mapping, metabolites, format));
+      const { text, structured } = buildMappingReport(
+        args.id_network,
+        args.ids,
+        mapping,
+        metabolites,
+        format,
+        pathways,
+      );
+      return {
+        content: [{ type: "text", text }],
+        structuredContent: structured as unknown as Record<string, unknown>,
+      };
     }, ctx),
   );
 }
