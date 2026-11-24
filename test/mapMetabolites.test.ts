@@ -41,7 +41,7 @@ test("buildMappingReport separates mapped, unmapped and ambiguous entries", () =
     },
   };
 
-  const report = buildMappingReport(
+  const { text: report } = buildMappingReport(
     42,
     ["M_glc__D_c", "M_adp.*", "M_noway_c"],
     mapping,
@@ -68,6 +68,72 @@ test("buildMappingReport renders as plain text when requested", () => {
     entities: {},
     statistics: { nb_queries: 1, nb_mapped_queries: 1, enrichment: {} },
   };
-  const report = buildMappingReport(1, ["M_glc__D_c"], mapping, metabolites, "text");
+  const { text: report } = buildMappingReport(1, ["M_glc__D_c"], mapping, metabolites, "text");
   assert.match(report, /1\. entry: M_glc__D_c, db_identifier: M_glc__D_c/);
+});
+
+test("buildMappingReport returns structured data with resolved pathway ids", () => {
+  const mapping: MappingResponse = {
+    map: { "M_glc__D_c": ["M_glc__D_c"], "M_adp.*": ["M_adp_c", "M_adp_m"] },
+    entities: {},
+    statistics: {
+      nb_queries: 3,
+      nb_mapped_queries: 2,
+      enrichment: {
+        "Citric Acid Cycle": {
+          label: "Citric Acid Cycle",
+          nb_total_biodata: 10,
+          nb_mapped_biodata: 1,
+          pval: 0.5,
+          bonferroni_pval: 1,
+          bh_pval: 0.5,
+        },
+        "Glycolysis/Gluconeogenesis": {
+          label: "Glycolysis/Gluconeogenesis",
+          nb_total_biodata: 12,
+          nb_mapped_biodata: 2,
+          pval: 0.01,
+          bonferroni_pval: 0.02,
+          bh_pval: 0.015,
+        },
+        Unknown: {
+          label: "Unknown",
+          nb_total_biodata: 3,
+          nb_mapped_biodata: 1,
+          pval: 0.9,
+          bonferroni_pval: 1,
+          bh_pval: 0.9,
+        },
+      },
+    },
+  };
+  const pathways = [
+    { id: 2, name: "Glycolysis/Gluconeogenesis", db_identifier: "Glycolysis/Gluconeogenesis" },
+    { id: 8, name: "Citric Acid Cycle", db_identifier: "Citric Acid Cycle" },
+  ];
+
+  const { text, structured } = buildMappingReport(
+    1,
+    ["M_glc__D_c", "M_adp.*", "M_noway_c"],
+    mapping,
+    metabolites,
+    "table",
+    pathways,
+  );
+
+  assert.equal(structured.kind, "metabolite_mapping");
+  assert.equal(structured.id_network, 1);
+  assert.deepEqual(structured.mapped, [{ entry: "M_glc__D_c", db_identifier: "M_glc__D_c" }]);
+  assert.deepEqual(structured.not_found, ["M_noway_c"]);
+  assert.deepEqual(structured.ambiguous, [{ entry: "M_adp.*", db_identifiers: ["M_adp_c", "M_adp_m"] }]);
+  assert.deepEqual(
+    structured.pathways.map((p) => [p.name, p.id]),
+    [
+      ["Glycolysis/Gluconeogenesis", 2],
+      ["Citric Acid Cycle", 8],
+      ["Unknown", null],
+    ],
+  );
+  // the pathway id is also given to the LLM, in the enrichment table
+  assert.match(text, /\| id \|/);
 });

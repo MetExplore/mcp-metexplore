@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.0.4
+
+- fix map_metabolites: pathway ids and structured result
+
 ## 0.0.3
 
 - Get names of the reactions

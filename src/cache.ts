@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { MetExploreApiClient, Metabolite, Network, Reaction } from "./apiClient.js";
+import type { MetExploreApiClient, Metabolite, Network, Pathway, Reaction } from "./apiClient.js";
 
 /**
  * In-memory (process-lifetime) cache to avoid re-spending the API request
@@ -10,6 +10,7 @@ export class MetExploreCache {
   private metabolitesByNetwork = new Map<number, Metabolite[]>();
   private networkDetails = new Map<number, Network>();
   private reactionsByNetwork = new Map<number, Reaction[]>();
+  private pathwaysByNetwork = new Map<number, Pathway[]>();
 
   constructor(private readonly client: MetExploreApiClient) {}
 
@@ -44,6 +45,15 @@ export class MetExploreCache {
     if (!list) {
       list = await this.client.getReactionsForNetwork(idNetwork);
       this.reactionsByNetwork.set(idNetwork, list);
+    }
+    return list;
+  }
+
+  async getPathways(idNetwork: number): Promise<Pathway[]> {
+    let list = this.pathwaysByNetwork.get(idNetwork);
+    if (!list) {
+      list = await this.client.getPathwaysForNetwork(idNetwork);
+      this.pathwaysByNetwork.set(idNetwork, list);
     }
     return list;
   }
