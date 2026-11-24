@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.0.3
+
+- Get names of the reactions
+
 ## 0.0.2
 
 - Fix release ci
