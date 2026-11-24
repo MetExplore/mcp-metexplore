@@ -43,6 +43,17 @@ export interface Metabolite {
   [key: string]: unknown;
 }
 
+export interface Reaction {
+  id: number;
+  db_identifier: string;
+  name: string;
+  ec?: string;
+  reversible?: number;
+  eq_identifier?: string;
+  eq_name?: string;
+  [key: string]: unknown;
+}
+
 /** Pathway enrichment result for one pathway (right-tailed Fisher exact test). */
 export interface EnrichmentEntry {
   label: string;
@@ -102,6 +113,7 @@ export interface ChebiMatchResult {
 export interface FiltersResponse {
   ids: number[];
   db_identifiers: string[];
+  /** Not filled by the API for Metabolite2Reaction (returned as an empty list). */
   names: string[];
 }
 
@@ -276,6 +288,15 @@ export class MetExploreApiClient {
       `/metabolites?id_network=${idNetwork}`,
     );
     return res.results ?? res.metabolites ?? [];
+  }
+
+  async getReactionsForNetwork(idNetwork: number): Promise<Reaction[]> {
+    await this.ensureUserToken();
+    const res = await this.request<BaseEnvelope & { results?: Reaction[]; reactions?: Reaction[] }>(
+      "GET",
+      `/reactions?id_network=${idNetwork}`,
+    );
+    return res.results ?? res.reactions ?? [];
   }
 
   async mapMetaboliteIds(idNetwork: number, ids: string[]): Promise<MappingResponse> {
