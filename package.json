@@ -1,7 +1,23 @@
 {
-  "name": "mcp-metexplore",
-  "version": "0.2.0",
+  "name": "@metexplore/mcp-metexplore",
+  "version": "0.0.0",
   "description": "MCP server for querying the MetExplore API (organisms, metabolites, reactions, mapping)",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "metexplore",
+    "metabolism",
+    "metabolomics",
+    "metabolic-network"
+  ],
+  "homepage": "https://forge.inrae.fr/metexplore/mcp/mcp-metexplore",
+  "bugs": {
+    "url": "https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://forge.inrae.fr/metexplore/mcp/mcp-metexplore.git"
+  },
   "type": "module",
   "bin": {
     "mcp-metexplore": "dist/index.js"
@@ -15,7 +31,12 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "tsc -p tsconfig.json --watch",
-    "test": "tsc -p tsconfig.test.json && node --test dist-test/test/*.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/test/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "engines": {
     "node": ">=18.0.0"

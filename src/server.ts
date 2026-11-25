@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { MetExploreApiClient } from "./apiClient.js";
 import { MetExploreCache } from "./cache.js";
@@ -15,7 +18,30 @@ import { registerMapGenes } from "./tools/mapGenes.js";
 import { registerGetQuotaStatus } from "./tools/getQuotaStatus.js";
 
 export const SERVER_NAME = "mcp-metexplore";
-export const SERVER_VERSION = "0.2.0";
+export const PACKAGE_NAME = "@metexplore/mcp-metexplore";
+
+/**
+ * Version of the package, read from its package.json (the single source of truth: the repository
+ * keeps "0.0.0" and the CI sets the release tag before publishing / building the image).
+ * Searches upwards from this module, since it runs from dist/ (npm package, Docker image) as well
+ * as from dist-test/src/ (unit tests).
+ */
+function readPackageVersion(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: string; version?: string };
+      if (pkg.name === PACKAGE_NAME && typeof pkg.version === "string") return pkg.version;
+    } catch {
+      // no (readable) package.json here: keep going up
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return "0.0.0";
+    dir = parent;
+  }
+}
+
+export const SERVER_VERSION = readPackageVersion();
 
 export const SERVER_INSTRUCTIONS =
   "Tools to query MetExplore metabolic networks. Start with search_organisms to get an id_network. " +

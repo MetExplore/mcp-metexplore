@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.1.1
+
+- automatic publishing on npm
+
 ## 0.1.0
 
 - `map_genes`: map a list of gene identifiers onto a network (mapped / not found / ambiguous report, pathway enrichment)

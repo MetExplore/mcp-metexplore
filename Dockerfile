@@ -26,6 +26,9 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+# Version reported by the server (the repository keeps 0.0.0; the CI passes the tag).
+ARG VERSION=0.0.0
+RUN npm pkg set version="$VERSION"
 COPY --from=build /app/dist ./dist
 USER node
 EXPOSE 3000
