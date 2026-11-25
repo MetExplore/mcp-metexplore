@@ -4,7 +4,11 @@
 #   - any branch / merge request : unit tests (in Docker)
 #   - push on develop            : build image -> registry -> deploy on the "develop" VM
 #   - tag X.Y.Z                  : build image -> registry -> deploy on the "production" VM
+#                                  -> npm package @metexplore/mcp-metexplore@X.Y.Z
 #                                  -> GitLab release (notes taken from CHANGELOG.md)
+#
+# Version: package.json stays at 0.0.0 in the repository; the tag is the single source of
+# truth and is injected at build/publish time (docker --build-arg VERSION, npm version).
 #
 # Runner: tag vm-metexplore-dev, docker executor. The test/build jobs talk to the host's
 # Docker daemon through its socket, which must be mounted in the runner's config.toml:
@@ -66,6 +70,7 @@ test:
     - docker build --pull --target runtime
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA"
         --label "org.opencontainers.image.source=$CI_PROJECT_URL"
+        --build-arg "VERSION=$APP_VERSION"
         -t "$CI_REGISTRY_IMAGE:$IMAGE_TAG" .
     - docker push "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
     - |
@@ -81,6 +86,7 @@ build:develop:
   variables:
     IMAGE_TAG: develop-$CI_COMMIT_SHORT_SHA
     IMAGE_ALIASES: develop
+    APP_VERSION: 0.0.0-develop.$CI_COMMIT_SHORT_SHA
   rules:
     - *on_develop
 
@@ -89,6 +95,7 @@ build:release:
   variables:
     IMAGE_TAG: $CI_COMMIT_TAG
     IMAGE_ALIASES: latest
+    APP_VERSION: $CI_COMMIT_TAG
   rules:
     - *on_release
 
@@ -262,12 +269,41 @@ stop:production:
       when: manual
 
 # ---------------------------------------------------------------------------
+# npm package for each X.Y.Z tag: the tag becomes the package version (not committed).
+# Auth: NPM_TOKEN (Masked + Protected), an npm *granular access token* with read/write on the
+# @metexplore organization and "Bypass two-factor authentication" enabled (needed to publish
+# without an OTP). Write tokens expire after 90 days at most: rotate it before expiry.
+# Re-running the job for a version already on npm is a no-op.
+publish:npm:
+  stage: release
+  image: node:22-alpine
+  needs: [test]
+  rules:
+    - *on_release
+  script:
+    - |
+      set -eu
+      : "${NPM_TOKEN:?NPM_TOKEN is not set (Settings > CI/CD > Variables, protected tags only)}"
+      PKG="$(node -p 'require("./package.json").name')"
+      if npm view "$PKG@$CI_COMMIT_TAG" version >/dev/null 2>&1; then
+        echo "$PKG@$CI_COMMIT_TAG is already published, nothing to do"
+        exit 0
+      fi
+      # Job-local npmrc: the token is read from the environment, never written in clear.
+      export NPM_CONFIG_USERCONFIG="$(mktemp)"
+      echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' > "$NPM_CONFIG_USERCONFIG"
+      npm ci --no-audit --no-fund
+      npm version "$CI_COMMIT_TAG" --no-git-tag-version
+      npm publish   # builds through prepublishOnly; public access through publishConfig
+      echo "Published https://www.npmjs.com/package/$PKG/v/$CI_COMMIT_TAG"
+
+# ---------------------------------------------------------------------------
 # GitLab release for each X.Y.Z tag, once the image is published. The description
 # is the "## X.Y.Z" section of CHANGELOG.md (fallback: a link to the changelog).
 release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
-  needs: [build:release]
+  needs: [build:release, publish:npm]
   rules:
     - *on_release
   script:
@@ -283,6 +319,7 @@ release:
       fi
       {
         printf '\n**Docker image:** `%s:%s`\n' "$CI_REGISTRY_IMAGE" "$CI_COMMIT_TAG"
+        printf '\n**npm:** [`@metexplore/mcp-metexplore@%s`](https://www.npmjs.com/package/@metexplore/mcp-metexplore/v/%s)\n' "$CI_COMMIT_TAG" "$CI_COMMIT_TAG"
       } >> release-notes.md
       cat release-notes.md
   release:
