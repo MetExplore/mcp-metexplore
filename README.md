@@ -139,7 +139,39 @@ Omit `headers` to access public networks only.
 
 #### Option 2: local use (stdio)
 
-Install and build the server:
+The server is published on npm as
+[`@metexplore/mcp-metexplore`](https://www.npmjs.com/package/@metexplore/mcp-metexplore):
+`npx` downloads and runs it, nothing to install. Register it in your client,
+e.g. for Claude Desktop (`claude_desktop_config.json`) or any client using the
+`mcpServers` format:
+
+```json
+{
+  "mcpServers": {
+    "metexplore": {
+      "command": "npx",
+      "args": ["-y", "@metexplore/mcp-metexplore"],
+      "env": {
+        "METEXPLORE_APP_KEY": "<your app key>"
+      }
+    }
+  }
+}
+```
+
+Or with Claude Code:
+
+```bash
+claude mcp add metexplore --env METEXPLORE_APP_KEY=<your app key> -- npx -y @metexplore/mcp-metexplore
+```
+
+Other variables of the configuration table below can be added the same way
+(`"env"` block or `--env`). Check the connection with `/mcp` in Claude Code,
+then ask one of the [example questions](#example-questions).
+
+##### From the sources
+
+To run a modified version, install and build the server:
 
 ```bash
 git clone https://forge.inrae.fr/metexplore/mcp/mcp-metexplore.git
@@ -150,7 +182,7 @@ cp .env.example .env
 # edit .env: see the configuration table below
 ```
 
-Configuration (`.env`):
+Configuration (`.env`, or `env` block of the client configuration):
 
 | Variable | Required | Description |
 |---|---|---|
@@ -166,8 +198,8 @@ Without any user credentials, the API is queried with the app key only: only
 **public** networks are visible. HTTP-mode variables are described in
 [Deployment](#deployment).
 
-Then register the server in your client, e.g. for Claude Desktop / Claude Code
-(`claude_desktop_config.json` or equivalent):
+Then register the built server (instead of `npx`) in your client, e.g. for
+Claude Desktop / Claude Code (`claude_desktop_config.json` or equivalent):
 
 ```json
 {
@@ -271,7 +303,17 @@ to the VMs.
 |---|---|---|---|
 | any branch / MR | `test` | — | — |
 | push on `develop` | `build:develop`, `deploy:develop` | `:develop-<sha>`, `:develop` | environment `develop` |
-| tag `X.Y.Z` | `build:release`, `deploy:production`, `release` | `:X.Y.Z`, `:latest` | environment `production` + GitLab release |
+| tag `X.Y.Z` | `build:release`, `deploy:production`, `publish:npm`, `release` | `:X.Y.Z`, `:latest` | environment `production` + npm package + GitLab release |
+
+**Versioning**: the git tag is the single source of truth. `package.json`
+stays at `0.0.0` in the repository; the CI injects the tag as the image's
+version (`--build-arg VERSION`) and as the npm package's version
+(`npm version X.Y.Z --no-git-tag-version`, not committed). Develop images
+report `0.0.0-develop.<sha>`.
+
+The `publish:npm` job publishes
+[`@metexplore/mcp-metexplore`](https://www.npmjs.com/package/@metexplore/mcp-metexplore)
+at the tag's version (a no-op if that version is already on npm).
 
 The `release` job creates the GitLab release of the tag (Deploy > Releases),
 using the `## X.Y.Z` section of [CHANGELOG.md](CHANGELOG.md) as its description:
@@ -314,6 +356,12 @@ for one environment).
 | `MCP_ALLOWED_HOSTS` | Public hostname of this environment |
 | `HOST_PORT` | Optional (default `8077`), bound to `127.0.0.1` on the VM |
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION`, `METEXPLORE_TLS_REJECT_UNAUTHORIZED`, `MCP_RATE_LIMIT_PER_MINUTE`, `MCP_MAX_SESSIONS`, `MCP_SESSION_TTL_MINUTES` | Optional |
+
+The npm token is defined at the project level, **without** environment scope:
+
+| Variable | Notes |
+|---|---|
+| `NPM_TOKEN` | Masked + protected. npm *granular access token* (npmjs.com > Access Tokens > Generate New Token > Granular): read and write on the `@metexplore` organization, **"Bypass two-factor authentication"** checked (publishing from the CI cannot answer an OTP). Write tokens expire after 90 days at most: rotate it before expiry, or `publish:npm` fails |
 
 Protected variables are only exposed on protected branches/tags: protect
 `develop` and the release tags `*.*.*` (Settings > Repository).
