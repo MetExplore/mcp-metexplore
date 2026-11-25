@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.1.0
+
+- `map_genes`: map a list of gene identifiers onto a network (mapped / not found / ambiguous report, pathway enrichment)
+
 ## 0.0.4
 
 - fix map_metabolites: pathway ids and structured result

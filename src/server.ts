@@ -11,6 +11,7 @@ import { registerSearchMetabolitesByExternalId } from "./tools/searchMetabolites
 import { registerCountReactionsForMetabolite } from "./tools/countReactionsForMetabolite.js";
 import { registerMatchChebi } from "./tools/matchChebi.js";
 import { registerMapMetabolites } from "./tools/mapMetabolites.js";
+import { registerMapGenes } from "./tools/mapGenes.js";
 import { registerGetQuotaStatus } from "./tools/getQuotaStatus.js";
 
 export const SERVER_NAME = "mcp-metexplore";
@@ -25,7 +26,8 @@ export const SERVER_INSTRUCTIONS =
   "identifier (ChEBI, KEGG, HMDB, MetaNetX, PubChem, LipidMaps, InChI, BiGG, VMH...), e.g. 'CHEBI:15422' " +
   "or 'C00002', use search_metabolites_by_external_id. To find metabolites related to a ChEBI " +
   "identifier through the ChEBI ontology (parent/child classes, conjugate acid/base, tautomers, " +
-  "enantiomers), or when a ChEBI has no exact match, use match_chebi.";
+  "enantiomers), or when a ChEBI has no exact match, use match_chebi. To map a list of metabolite " +
+  "identifiers onto a network, use map_metabolites; for a list of gene identifiers, use map_genes.";
 
 /**
  * Builds an MCP server bound to one MetExplore session: its own API client
@@ -44,6 +46,7 @@ export function createMcpServer(config: Config, mode: TransportMode): { server: 
   registerCountReactionsForMetabolite(server, ctx);
   registerMatchChebi(server, ctx);
   registerMapMetabolites(server, ctx);
+  registerMapGenes(server, ctx);
   registerGetQuotaStatus(server, ctx);
 
   return { server, ctx };
