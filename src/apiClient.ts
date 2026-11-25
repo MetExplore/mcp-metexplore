@@ -327,6 +327,17 @@ export class MetExploreApiClient {
     return res;
   }
 
+  /** Maps gene identifiers (exact db_identifier or regex) onto a network (POST /mapping/genes/ids). */
+  async mapGeneIds(idNetwork: number, ids: string[]): Promise<MappingResponse> {
+    await this.ensureUserToken();
+    const res = await this.request<BaseEnvelope & MappingResponse>("POST", "/mapping/genes/ids", {
+      id_network: idNetwork,
+      type: "genes",
+      entries: { ids },
+    });
+    return res;
+  }
+
   /** Matches ChEBI identifiers to the network metabolites using the ChEBI ontology (POST /match/chebi). */
   async matchChebi(idNetwork: number, inputs: { name: string; input_id: string }[]): Promise<ChebiMatchResult[]> {
     await this.ensureUserToken();

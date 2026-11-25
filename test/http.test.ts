@@ -118,6 +118,7 @@ test("exposes the tools without the SBML export", async (t) => {
   assert.deepEqual(names, [
     "count_reactions_for_metabolite",
     "get_quota_status",
+    "map_genes",
     "map_metabolites",
     "match_chebi",
     "search_metabolites",

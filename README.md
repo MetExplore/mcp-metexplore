@@ -39,6 +39,8 @@ nothing to install) or run **locally** (`stdio` transport).
   → `search_organisms("Human-GEM 2")` then `match_chebi`.
 - "I have this file of metabolite identifiers, map it onto Ralstonia and give
   me a report." → `search_organisms("Ralstonia")` then `map_metabolites`.
+- "Map these E. coli genes and tell me which pathways are enriched."
+  → `search_organisms("E. coli")` then `map_genes`.
 
 ## Features
 
@@ -61,6 +63,9 @@ nothing to install) or run **locally** (`stdio` transport).
   involving a metabolite.
 - **`map_metabolites`**: map a list of metabolite identifiers onto a
   network and produce a report (mapped / not found / ambiguous).
+- **`map_genes`**: map a list of gene identifiers (exact or regular
+  expression) onto a network and produce the same report, with pathway
+  enrichment.
 - **`get_quota_status`**: check the remaining API request quota for
   the current session.
 
