@@ -1,0 +1,61 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.MetExplore/mcp-metexplore",
+  "title": "MetExplore",
+  "description": "Query MetExplore metabolic networks: organisms, metabolites, reactions, metabolite and gene mapping",
+  "websiteUrl": "https://forge.inrae.fr/metexplore/mcp/mcp-metexplore",
+  "repository": {
+    "url": "https://github.com/MetExplore/mcp-metexplore",
+    "source": "github"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@metexplore/mcp-metexplore",
+      "version": "0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "METEXPLORE_APP_KEY",
+          "description": "MetExplore application key, to request from contact-metexplore@inrae.fr",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "METEXPLORE_USER_TOKEN",
+          "description": "MetExplore user token (account profile), to also access your private networks",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "METEXPLORE_API_URL",
+          "description": "Base URL of the MetExplore API (default: production)",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "https://metexplore.toulouse.inrae.fr/metexplore3-api"
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://metexplore.toulouse.inrae.fr/metexplore-mcp/mcp",
+      "headers": [
+        {
+          "name": "X-MetExplore-Token",
+          "description": "MetExplore user token, to also access your private networks (public networks without it)",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

@@ -186,7 +186,7 @@ Configuration (`.env`, or `env` block of the client configuration):
 
 | Variable | Required | Description |
 |---|---|---|
-| `METEXPLORE_API_URL` | no (default `http://localhost:1337`) | Base URL of the MetExplore API, no trailing slash |
+| `METEXPLORE_API_URL` | no (default `https://metexplore.toulouse.inrae.fr/metexplore3-api`, production) | Base URL of the MetExplore API, no trailing slash |
 | `METEXPLORE_APP_KEY` | yes | Application token (`x-app-key` header), to request from contact-metexplore@inrae.fr |
 | `METEXPLORE_USER_TOKEN` | no (stdio only) | A user token already obtained |
 | `METEXPLORE_USER_LOGIN` / `METEXPLORE_USER_PASSWORD` | no (stdio only, set together) | Credentials used to call `/users/login` on first use |
@@ -303,17 +303,24 @@ to the VMs.
 |---|---|---|---|
 | any branch / MR | `test` | — | — |
 | push on `develop` | `build:develop`, `deploy:develop` | `:develop-<sha>`, `:develop` | environment `develop` |
-| tag `X.Y.Z` | `build:release`, `deploy:production`, `publish:npm`, `release` | `:X.Y.Z`, `:latest` | environment `production` + npm package + GitLab release |
+| tag `X.Y.Z` | `build:release`, `deploy:production`, `publish:npm`, `publish:mcp-registry`, `release` | `:X.Y.Z`, `:latest` | environment `production` + npm package + MCP registry + GitLab release |
 
 **Versioning**: the git tag is the single source of truth. `package.json`
-stays at `0.0.0` in the repository; the CI injects the tag as the image's
-version (`--build-arg VERSION`) and as the npm package's version
-(`npm version X.Y.Z --no-git-tag-version`, not committed). Develop images
-report `0.0.0-develop.<sha>`.
+and [server.json](server.json) stay at `0.0.0` in the repository; the CI
+injects the tag as the image's version (`--build-arg VERSION`), as the npm
+package's version (`npm version X.Y.Z --no-git-tag-version`, not committed)
+and as the MCP registry version. Develop images report `0.0.0-develop.<sha>`.
 
 The `publish:npm` job publishes
 [`@metexplore/mcp-metexplore`](https://www.npmjs.com/package/@metexplore/mcp-metexplore)
 at the tag's version (a no-op if that version is already on npm).
+
+The `publish:mcp-registry` job then lists that version in the
+[official MCP registry](https://registry.modelcontextprotocol.io) as
+`io.github.MetExplore/mcp-metexplore`, from [server.json](server.json) (npm
+package + hosted remote server), with a pinned `mcp-publisher`. The registry
+checks that the npm package's `mcpName` (in `package.json`) equals
+`server.json`'s `name`. A no-op if that version is already in the registry.
 
 The `release` job creates the GitLab release of the tag (Deploy > Releases),
 using the `## X.Y.Z` section of [CHANGELOG.md](CHANGELOG.md) as its description:
@@ -357,11 +364,12 @@ for one environment).
 | `HOST_PORT` | Optional (default `8077`), bound to `127.0.0.1` on the VM |
 | `METEXPLORE_MAX_REQUESTS_PER_SESSION`, `METEXPLORE_TLS_REJECT_UNAUTHORIZED`, `MCP_RATE_LIMIT_PER_MINUTE`, `MCP_MAX_SESSIONS`, `MCP_SESSION_TTL_MINUTES` | Optional |
 
-The npm token is defined at the project level, **without** environment scope:
+The publishing tokens are defined at the project level, **without** environment scope:
 
 | Variable | Notes |
 |---|---|
 | `NPM_TOKEN` | Masked + protected. npm *granular access token* (npmjs.com > Access Tokens > Generate New Token > Granular): read and write on the `@metexplore` organization, **"Bypass two-factor authentication"** checked (publishing from the CI cannot answer an OTP). Write tokens expire after 90 days at most: rotate it before expiry, or `publish:npm` fails |
+| `MCP_GITHUB_TOKEN` | Masked + protected. GitHub token of an **Owner** of the [MetExplore](https://github.com/MetExplore) organization (required to publish under `io.github.MetExplore/*`): classic PAT with only the `read:org` scope, or fine-grained PAT (resource owner MetExplore) with *Organization permissions > Members: Read-only*. A token without that permission still logs in but only gets the personal namespace, and `publish:mcp-registry` fails |
 
 Protected variables are only exposed on protected branches/tags: protect
 `develop` and the release tags `*.*.*` (Settings > Repository).

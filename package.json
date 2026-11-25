@@ -1,6 +1,7 @@
 {
   "name": "@metexplore/mcp-metexplore",
   "version": "0.0.0",
+  "mcpName": "io.github.MetExplore/mcp-metexplore",
   "description": "MCP server for querying the MetExplore API (organisms, metabolites, reactions, mapping)",
   "keywords": [
     "mcp",

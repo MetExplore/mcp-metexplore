@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.1.2
+
+- Listed in the official MCP registry as `io.github.MetExplore/mcp-metexplore`
+
 ## 0.1.1
 
 - automatic publishing on npm
