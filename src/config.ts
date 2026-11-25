@@ -53,7 +53,7 @@ export interface HttpConfig {
 }
 
 export function loadConfig(): Config {
-  const apiUrl = (process.env.METEXPLORE_API_URL ?? "http://localhost:1337").replace(/\/+$/, "");
+  const apiUrl = (process.env.METEXPLORE_API_URL ?? "https://metexplore.toulouse.inrae.fr/metexplore3-api").replace(/\/+$/, "");
   const appKey = requireEnv("METEXPLORE_APP_KEY");
   const userToken = process.env.METEXPLORE_USER_TOKEN || undefined;
   const userLogin = process.env.METEXPLORE_USER_LOGIN || undefined;
