@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { renderRows, type OutputFormat } from "../format.js";
-import { textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { METEXPLORE_QUERY_ANNOTATIONS, textResult, withErrorHandling, type ToolContext } from "./shared.js";
 
 export const countReactionsInputSchema = {
   id_network: z.number().int().describe("Id of the MetExplore network"),
@@ -25,6 +25,7 @@ export function registerCountReactionsForMetabolite(server: McpServer, ctx: Tool
         "Returns the number and list of reactions (id, db_identifier, name) in the network that involve a given metabolite. " +
         "The metabolite must first be resolved to an internal id via search_metabolites.",
       inputSchema: countReactionsInputSchema,
+      annotations: METEXPLORE_QUERY_ANNOTATIONS,
     },
     withErrorHandling(async (args, { client, cache }) => {
       const format: OutputFormat = args.output_format ?? "table";

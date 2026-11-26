@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Metabolite } from "../apiClient.js";
 import { formatCrossRefs, renderRows, type OutputFormat } from "../format.js";
-import { jsonResult, textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { METEXPLORE_QUERY_ANNOTATIONS, jsonResult, textResult, withErrorHandling, type ToolContext } from "./shared.js";
 import { findMetabolitesByFormula, looksLikeFormula, renderFormulaResult } from "./searchMetabolitesByFormula.js";
 
 export const searchMetabolitesInputSchema = {
@@ -195,6 +195,7 @@ export function registerSearchMetabolites(server: McpServer, ctx: ToolContext) {
         "chemical formula (e.g. C3H3O4), use search_metabolites_by_formula instead; to search by external " +
         "identifier (ChEBI, KEGG, HMDB...), use search_metabolites_by_external_id.",
       inputSchema: searchMetabolitesInputSchema,
+      annotations: METEXPLORE_QUERY_ANNOTATIONS,
     },
     withErrorHandling(async (args, { cache }) => {
       const format: OutputFormat = args.output_format ?? "table";

@@ -1,9 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import type { MetExploreApiClient } from "../apiClient.js";
 import type { MetExploreCache } from "../cache.js";
 import type { Config } from "../config.js";
 import { MetExploreApiError, MetExploreAuthError, MetExploreQuotaError } from "../errors.js";
+
+/**
+ * Annotations of the tools querying the MetExplore API: they never modify anything (the POST
+ * endpoints used — /mapping/*, /match/chebi, /filter — are computations without side effects)
+ * and they reach an external service.
+ */
+export const METEXPLORE_QUERY_ANNOTATIONS: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+};
+
+/** Annotations of the tools that only read the server's local state (no API call). */
+export const LOCAL_ANNOTATIONS: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
 
 export interface ToolContext {
   client: MetExploreApiClient;

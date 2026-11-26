@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ChebiMatch, ChebiMatchResult } from "../apiClient.js";
 import { renderRows, type OutputFormat } from "../format.js";
-import { textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { METEXPLORE_QUERY_ANNOTATIONS, textResult, withErrorHandling, type ToolContext } from "./shared.js";
 
 export const matchChebiInputSchema = {
   id_network: z.number().int().describe("Id of the MetExplore network (obtained via search_organisms)"),
@@ -144,6 +144,7 @@ export function registerMatchChebi(server: McpServer, ctx: ToolContext) {
         "ChEBI identifiers (e.g. from metabolomics) onto a network. Requires an id_network (see " +
         "search_organisms); the network must contain ChEBI cross-references.",
       inputSchema: matchChebiInputSchema,
+      annotations: METEXPLORE_QUERY_ANNOTATIONS,
     },
     withErrorHandling(async (args, { client }) => {
       const queries: ChebiQuery[] = [];
