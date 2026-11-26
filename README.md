@@ -3,6 +3,7 @@
 [![pipeline status](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/badges/main/pipeline.svg)](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/commits/main)
 [![Latest Release](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/badges/release.svg)](https://forge.inrae.fr/metexplore/mcp/mcp-metexplore/-/releases)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![mcptry](https://mcptry.com/badge/io.github.MetExplore/mcp-metexplore)](https://mcptry.com/servers/io.github.MetExplore/mcp-metexplore)
 
 <!-- If your software has been certified by MetaboHUB, put the following badge here : -->
 <!-- [![MetaboHUB Logo](https://forge.inrae.fr/metabohub/e-tools/template-readme-mth/-/raw/main/logos/metabohub_logo-20x20.png?ref_type=heads)![MetaboHUB title](https://img.shields.io/badge/MetaboHub-Software-0066cc?style=flat-square)](https://www.metabohub.fr) -->
