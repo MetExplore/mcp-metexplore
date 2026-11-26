@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { LOCAL_ANNOTATIONS, textResult, withErrorHandling, type ToolContext } from "./shared.js";
 
 export function registerGetQuotaStatus(server: McpServer, ctx: ToolContext) {
   server.registerTool(
@@ -11,6 +11,7 @@ export function registerGetQuotaStatus(server: McpServer, ctx: ToolContext) {
         "Returns how many requests have already been sent to the MetExplore API and how many " +
         "remain for the current MCP session (limit set by METEXPLORE_MAX_REQUESTS_PER_SESSION).",
       inputSchema: {},
+      annotations: LOCAL_ANNOTATIONS,
     },
     withErrorHandling(async (_args, { client, config }) => {
       return textResult(

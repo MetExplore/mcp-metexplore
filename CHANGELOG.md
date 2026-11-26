@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.1.3
+
+- Tool annotations on every tool (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`)
+- MetExplore icon in the MCP registry listing
+
 ## 0.1.2
 
 - Listed in the official MCP registry as `io.github.MetExplore/mcp-metexplore`

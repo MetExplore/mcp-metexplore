@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Metabolite } from "../apiClient.js";
 import { formatCrossRefs, renderRows, type OutputFormat } from "../format.js";
-import { textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { METEXPLORE_QUERY_ANNOTATIONS, textResult, withErrorHandling, type ToolContext } from "./shared.js";
 
 export const searchMetabolitesByExternalIdInputSchema = {
   id_network: z.number().int().describe("Id of the MetExplore network (obtained via search_organisms)"),
@@ -256,6 +256,7 @@ export function registerSearchMetabolitesByExternalId(server: McpServer, ctx: To
         "the answer lists the databases available in the network: ask the user which one to use and " +
         "call again with db. Requires an id_network (see search_organisms).",
       inputSchema: searchMetabolitesByExternalIdInputSchema,
+      annotations: METEXPLORE_QUERY_ANNOTATIONS,
     },
     withErrorHandling(async (args, { cache }) => {
       const network = await cache.getNetworkDetails(args.id_network);

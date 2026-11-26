@@ -9,7 +9,8 @@
     "metexplore",
     "metabolism",
     "metabolomics",
-    "metabolic-network"
+    "metabolic-network",
+	"bioinformatics"
   ],
   "homepage": "https://forge.inrae.fr/metexplore/mcp/mcp-metexplore",
   "bugs": {

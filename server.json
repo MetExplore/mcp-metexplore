@@ -4,6 +4,13 @@
   "title": "MetExplore",
   "description": "Query MetExplore metabolic networks: organisms, metabolites, reactions, metabolite and gene mapping",
   "websiteUrl": "https://forge.inrae.fr/metexplore/mcp/mcp-metexplore",
+  "icons": [
+    {
+      "src": "https://metexplore.toulouse.inrae.fr/metexplore3/images/logos/metexplore3-logo.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    }
+  ],
   "repository": {
     "url": "https://github.com/MetExplore/mcp-metexplore",
     "source": "github"

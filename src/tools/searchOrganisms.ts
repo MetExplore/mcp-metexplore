@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Network } from "../apiClient.js";
 import { renderRows, type OutputFormat } from "../format.js";
-import { jsonResult, textResult, withErrorHandling, type ToolContext } from "./shared.js";
+import { METEXPLORE_QUERY_ANNOTATIONS, jsonResult, textResult, withErrorHandling, type ToolContext } from "./shared.js";
 
 export const searchOrganismsInputSchema = {
   query: z.string().describe("Name (or fragment of a name) of the organism to look for, e.g. 'Homo sapiens'"),
@@ -110,6 +110,7 @@ export function registerSearchOrganisms(server: McpServer, ctx: ToolContext) {
         "against names, identifiers and descriptions; a version-like word ('2', 'v2', '1.19') " +
         "filters on the model version, e.g. 'Human-GEM 2'.",
       inputSchema: searchOrganismsInputSchema,
+      annotations: METEXPLORE_QUERY_ANNOTATIONS,
     },
     withErrorHandling(async (args, { cache }) => {
       const format: OutputFormat = args.output_format ?? "table";

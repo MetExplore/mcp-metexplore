@@ -4,7 +4,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Metabolite, MappingResponse, Pathway } from "../apiClient.js";
 import type { OutputFormat } from "../format.js";
 import { buildEntityMappingReport, type MappingStructured } from "./mapping.js";
-import { withErrorHandling, type ToolContext } from "./shared.js";
+import { METEXPLORE_QUERY_ANNOTATIONS, withErrorHandling, type ToolContext } from "./shared.js";
 
 export const mapMetabolitesInputSchema = {
   id_network: z.number().int().describe("Id of the MetExplore network to map onto"),
@@ -66,6 +66,7 @@ export function registerMapMetabolites(server: McpServer, ctx: ToolContext) {
         "'which pathways are overrepresented' questions; no other tool or export is needed for that. " +
         "The target network must first be resolved via search_organisms.",
       inputSchema: mapMetabolitesInputSchema,
+      annotations: METEXPLORE_QUERY_ANNOTATIONS,
     },
     withErrorHandling(async (args, { client, cache }) => {
       const format: OutputFormat = args.output_format ?? "table";
