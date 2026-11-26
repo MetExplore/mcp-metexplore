@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.1.4
+
+- add badges in README
+
 ## 0.1.3
 
 - Tool annotations on every tool (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`)
